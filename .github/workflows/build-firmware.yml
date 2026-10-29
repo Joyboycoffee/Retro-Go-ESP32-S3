@@ -1,0 +1,78 @@
+name: Build Retro-Go ESP32-S3 Firmware
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build-idf5:
+    name: Build Firmware (ESP-IDF v5.1.4)
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.1.4
+    steps:
+      - name: Configure Git Safe Directory
+        run: git config --global --add safe.directory "*"
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply Optional ESP-IDF Patches
+        run: |
+          cd /opt/esp/idf
+          patch --ignore-whitespace -p1 -i "$GITHUB_WORKSPACE/retro-go/tools/patches/panic-hook (esp-idf 5).diff" || true
+          patch --ignore-whitespace -p1 -i "$GITHUB_WORKSPACE/retro-go/tools/patches/sdcard-fix (esp-idf 5).diff" || true
+
+      - name: Compile Retro-Go Image
+        shell: bash
+        working-directory: retro-go
+        run: |
+          . /opt/esp/idf/export.sh
+          export PROJECT_VER="1.46"
+          python rg_tool.py --target=esp32-s3-devkit release
+
+      - name: Upload Firmware Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: retro-go-esp32s3-firmware-idf5
+          path: retro-go/*.img
+
+  build-idf4:
+    name: Build Firmware (ESP-IDF v4.4)
+    runs-on: ubuntu-latest
+    container: espressif/idf:release-v4.4
+    continue-on-error: true
+    steps:
+      - name: Configure Git Safe Directory
+        run: git config --global --add safe.directory "*"
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install ESP32-S3 Toolchain
+        run: |
+          /opt/esp/idf/install.sh esp32s3
+
+      - name: Apply Optional ESP-IDF Patches
+        run: |
+          cd /opt/esp/idf
+          patch --ignore-whitespace -p1 -i "$GITHUB_WORKSPACE/retro-go/tools/patches/panic-hook (esp-idf 4).diff" || true
+          patch --ignore-whitespace -p1 -i "$GITHUB_WORKSPACE/retro-go/tools/patches/sdcard-fix (esp-idf 4).diff" || true
+
+      - name: Compile Retro-Go Image
+        shell: bash
+        working-directory: retro-go
+        run: |
+          . /opt/esp/idf/export.sh
+          export PROJECT_VER="1.46"
+          python rg_tool.py --target=esp32-s3-devkit release
+
+      - name: Upload Firmware Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: retro-go-esp32s3-firmware-idf4
+          path: retro-go/*.img
