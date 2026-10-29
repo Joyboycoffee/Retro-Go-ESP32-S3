@@ -19,6 +19,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Make Scripts Executable
+        run: chmod +x -R "$GITHUB_WORKSPACE/retro-go/tools" "$GITHUB_WORKSPACE/retro-go/rg_tool.py"
+
       - name: Apply Optional ESP-IDF Patches
         run: |
           cd /opt/esp/idf
@@ -56,6 +59,9 @@ jobs:
       - name: Install ESP32-S3 Toolchain
         run: |
           /opt/esp/idf/install.sh esp32s3
+
+      - name: Make Scripts Executable
+        run: chmod +x -R "$GITHUB_WORKSPACE/retro-go/tools" "$GITHUB_WORKSPACE/retro-go/rg_tool.py"
 
       - name: Apply Optional ESP-IDF Patches
         run: |
