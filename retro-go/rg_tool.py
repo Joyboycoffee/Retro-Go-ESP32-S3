@@ -64,14 +64,14 @@ MKFW_PY = os.path.join("tools", "mkfw.py")
 
 def run(cmd, cwd=None, check=True):
     print(f"Running command: {' '.join(cmd)}")
-    if cmd[0].endswith(".py"):
-        return subprocess.run([sys.executable, *cmd], cwd=cwd, check=check)
+    if os.name == 'nt' and cmd[0].endswith(".py"):
+        return subprocess.run(["python", *cmd], shell=True, cwd=cwd, check=check)
     return subprocess.run(cmd, shell=False, cwd=cwd, check=check)
 
 
 def build_image(apps, output_file, img_type="odroid", fatsize=0, target="unknown", version="unknown"):
     print("Building firmware image with: %s\n" % " ".join(apps))
-    args = [MKFW_PY, "--type", img_type, "--name", PROJECT_NAME, "--icon", PROJECT_ICON, "--version", PROJECT_VER]
+    args = [sys.executable, MKFW_PY, "--type", img_type, "--name", PROJECT_NAME, "--icon", PROJECT_ICON, "--version", PROJECT_VER]
 
     if img_type not in ["odroid", "esplay"]:
         print("Building bootloader...")
