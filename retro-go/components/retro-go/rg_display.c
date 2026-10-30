@@ -459,6 +459,24 @@ void rg_display_set_backlight(display_backlight_t percent)
     lcd_set_backlight(config.backlight);
 }
 
+static bool display_sleeping = false;
+
+void rg_display_set_sleeping(bool sleep)
+{
+    if (display_sleeping == sleep)
+        return;
+    display_sleeping = sleep;
+    if (sleep)
+        lcd_set_backlight(0);
+    else
+        lcd_set_backlight(config.backlight);
+}
+
+bool rg_display_is_sleeping(void)
+{
+    return display_sleeping;
+}
+
 display_backlight_t rg_display_get_backlight(void)
 {
     return config.backlight;
@@ -615,7 +633,7 @@ void rg_display_clear(uint16_t color_le)
 void rg_display_deinit(void)
 {
     rg_task_send(display_task_queue, &(rg_task_msg_t){.type = RG_TASK_MSG_STOP});
-    // lcd_set_backlight(0);
+    lcd_set_backlight(0);
     lcd_deinit();
     RG_LOGI("Display terminated.\n");
 }

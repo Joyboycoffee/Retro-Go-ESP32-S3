@@ -1,5 +1,6 @@
 #include "rg_system.h"
 #include "rg_input.h"
+#include "rg_display.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -39,6 +40,7 @@ static rg_keymap_serial_t keymap_serial[] = RG_GAMEPAD_SERIAL_MAP;
 static rg_keymap_virt_t keymap_virt[] = RG_GAMEPAD_VIRT_MAP;
 #endif
 static bool input_task_running = false;
+static int64_t last_activity_time = 0;
 static uint32_t gamepad_state = -1; // _Atomic
 static uint32_t gamepad_mapped = 0;
 static rg_battery_t battery_state = {0};
@@ -241,6 +243,16 @@ static void input_task(void *arg)
                     local_gamepad_state &= ~(1 << i); // Released
                 }
             }
+            if (local_gamepad_state != 0)
+            {
+                last_activity_time = rg_system_timer();
+                if (rg_display_is_sleeping())
+                {
+                    rg_display_set_sleeping(false);
+                    local_gamepad_state = 0;
+                    memset(debounce, 0, sizeof(debounce));
+                }
+            }
             gamepad_state = local_gamepad_state;
         }
 
@@ -357,6 +369,7 @@ void rg_input_init(void)
     // The first read returns bogus data in some drivers, waste it.
     rg_input_read_gamepad_raw(NULL);
 
+    last_activity_time = rg_system_timer();
     // Start background polling
     rg_task_create("rg_input", &input_task, NULL, 3 * 1024, RG_TASK_PRIORITY_6, 1);
     while (gamepad_state == -1)
@@ -428,4 +441,14 @@ const char *rg_input_get_key_name(rg_key_t key)
     case RG_KEY_NONE: return "None";
     default: return "Unknown";
     }
+}
+
+int64_t rg_input_get_last_activity(void)
+{
+    return last_activity_time;
+}
+
+void rg_input_reset_last_activity(void)
+{
+    last_activity_time = rg_system_timer();
 }

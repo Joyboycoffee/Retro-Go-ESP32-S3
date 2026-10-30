@@ -1,5 +1,6 @@
 // Target definition
 #define RG_TARGET_NAME             "ESP32-S3-DEVKIT"
+#define RG_RECOVERY_BTN            RG_KEY_MENU // Only enter recovery mode if MENU is held during boot
 
 // Storage
 #define RG_STORAGE_ROOT             "/sd"

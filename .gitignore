@@ -28,3 +28,5 @@ copy to SD card/roms/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+build_firmware/

@@ -261,6 +261,15 @@ static void system_monitor_task(void *arg)
         rg_system_set_indicator(RG_INDICATOR_POWER_LOW, (battery.present && battery.level <= 2.f));
         update_indicators(false);
 
+        int screen_timeout = rg_settings_get_number(NS_GLOBAL, "ScreenTimeout", 0);
+        if (screen_timeout > 0 && !rg_display_is_sleeping())
+        {
+            if (rg_system_timer() - rg_input_get_last_activity() >= (int64_t)screen_timeout * 1000000LL)
+            {
+                rg_display_set_sleeping(true);
+            }
+        }
+
         // Try to avoid complex conversions that could allocate, prefer rounding/ceiling if necessary.
         rg_system_log(RG_LOG_DEBUG, NULL, "STACK:%d, HEAP:%d+%d (%d+%d), BUSY:%d%%, FPS:%d (S:%d R:%d+%d), BATT:%d",
             statistics.freeStackMain,
@@ -321,7 +330,7 @@ static void system_monitor_task(void *arg)
     }
 }
 
-static void enter_recovery_mode(void)
+void rg_system_enter_recovery(void)
 {
     RG_LOGW("Entering recovery mode...\n");
 
@@ -478,7 +487,7 @@ rg_app_t *rg_system_init(int sampleRate, const rg_handlers_t *handlers, void *_u
 
     if (enterRecoveryMode)
     {
-        enter_recovery_mode();
+        rg_system_enter_recovery();
     }
     else if (showCrashDialog)
     {
@@ -889,7 +898,6 @@ void rg_system_sleep(void)
     shutdown_cleanup();
     rg_task_delay(1000);
 #ifdef ESP_PLATFORM
-    esp_sleep_enable_ext0_wakeup(GPIO_NUM_21, 0); // Wake up on B button (Active-LOW)
     esp_deep_sleep_start();
 #else
     exit(0);

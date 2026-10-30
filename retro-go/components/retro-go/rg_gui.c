@@ -34,11 +34,14 @@ static struct
     int font_index;
     int font_height;
     bool show_clock;
+    bool clock_12hr;
     bool initialized;
 } gui;
 
 #define SETTING_FONTTYPE    "FontType"
-#define SETTING_CLOCK       "Clock"
+#define SETTING_CLOCK          "Clock"
+#define SETTING_CLOCK_12HR     "Clock12hr"
+#define SETTING_SCREEN_TIMEOUT "ScreenTimeout"
 #define SETTING_THEME       "Theme"
 #define SETTING_WIFI_ENABLE "Enable"
 #define SETTING_WIFI_SLOT   "Slot"
@@ -114,6 +117,7 @@ void rg_gui_init(void)
 {
     gui_update_geometry();
     gui.show_clock = rg_settings_get_boolean(NS_GLOBAL, SETTING_CLOCK, false);
+    gui.clock_12hr = rg_settings_get_boolean(NS_GLOBAL, SETTING_CLOCK_12HR, false);
     if (!rg_gui_set_language_id(rg_settings_get_number(NS_GLOBAL, SETTING_LANGUAGE, RG_LANG_DEFAULT)))
         rg_gui_set_language_id(0);
     if (!rg_gui_set_font(rg_settings_get_number(NS_GLOBAL, SETTING_FONTTYPE, RG_FONT_DEFAULT)))
@@ -605,15 +609,27 @@ void rg_gui_draw_icons(void)
 
     if (gui.show_clock)
     {
-        right += txt.width + 4;
-
-        int x_pos = -right;
-        int y_pos = 0;
-        char buffer[12];
+        char buffer[16];
         time_t time_sec = time(NULL);
         struct tm *time = localtime(&time_sec);
 
-        sprintf(buffer, "%02d:%02d", time->tm_hour, time->tm_min);
+        if (gui.clock_12hr)
+        {
+            int hour = time->tm_hour % 12;
+            if (hour == 0) hour = 12;
+            const char *am_pm = (time->tm_hour >= 12) ? "PM" : "AM";
+            sprintf(buffer, "%d:%02d %s", hour, time->tm_min, am_pm);
+        }
+        else
+        {
+            sprintf(buffer, "%02d:%02d", time->tm_hour, time->tm_min);
+        }
+
+        rg_rect_t clock_txt = TEXT_RECT(buffer, 0);
+        right += clock_txt.width + 4;
+
+        int x_pos = -right;
+        int y_pos = 0;
         rg_gui_draw_text(x_pos, y_pos, 0, buffer, C_SILVER, gui.screen_buffer ? C_TRANSPARENT : C_BLACK, 0);
     }
 }
@@ -1634,6 +1650,55 @@ static rg_gui_event_t show_clock_cb(rg_gui_option_t *option, rg_gui_event_t even
     strcpy(option->value, gui.show_clock ? _("On") : _("Off"));
     return RG_DIALOG_VOID;
 }
+static rg_gui_event_t clock_format_cb(rg_gui_option_t *option, rg_gui_event_t event)
+{
+    if (event == RG_DIALOG_PREV || event == RG_DIALOG_NEXT)
+    {
+        gui.clock_12hr = !gui.clock_12hr;
+        rg_settings_set_boolean(NS_GLOBAL, SETTING_CLOCK_12HR, gui.clock_12hr);
+        return RG_DIALOG_REDRAW;
+    }
+    strcpy(option->value, gui.clock_12hr ? "12-hour" : "24-hour");
+    return RG_DIALOG_VOID;
+}
+
+static rg_gui_event_t screen_timeout_cb(rg_gui_option_t *option, rg_gui_event_t event)
+{
+    static const struct { int sec; const char *label; } timeout_options[] = {
+        {0, "Never"},
+        {15, "15 sec"},
+        {30, "30 sec"},
+        {60, "1 min"},
+        {120, "2 min"},
+        {300, "5 min"},
+        {600, "10 min"},
+        {1800, "30 min"},
+    };
+    int current_sec = rg_settings_get_number(NS_GLOBAL, SETTING_SCREEN_TIMEOUT, 0);
+    int index = 0;
+    for (size_t i = 0; i < RG_COUNT(timeout_options); ++i)
+    {
+        if (timeout_options[i].sec == current_sec)
+        {
+            index = i;
+            break;
+        }
+    }
+    if (event == RG_DIALOG_NEXT && index < (int)RG_COUNT(timeout_options) - 1)
+        index++;
+    else if (event == RG_DIALOG_PREV && index > 0)
+        index--;
+
+    if (timeout_options[index].sec != current_sec)
+    {
+        rg_settings_set_number(NS_GLOBAL, SETTING_SCREEN_TIMEOUT, timeout_options[index].sec);
+        rg_input_reset_last_activity();
+        return RG_DIALOG_REDRAW;
+    }
+    strcpy(option->value, timeout_options[index].label);
+    return RG_DIALOG_VOID;
+}
+
 
 static rg_gui_event_t timezone_cb(rg_gui_option_t *option, rg_gui_event_t event)
 {
@@ -2026,6 +2091,8 @@ void rg_gui_options_menu(void)
         {0, _("Font type"),     "-", RG_DIALOG_FLAG_NORMAL, &font_type_cb},
         {0, _("Theme"),         "-", RG_DIALOG_FLAG_NORMAL, &theme_cb},
         {0, _("Show clock"),    "-", RG_DIALOG_FLAG_NORMAL, &show_clock_cb},
+        {0, _("Time format"),   "-", RG_DIALOG_FLAG_NORMAL, &clock_format_cb},
+        {0, _("Screen timeout"), "-", RG_DIALOG_FLAG_NORMAL, &screen_timeout_cb},
         {0, _("Timezone"),      "-", RG_DIALOG_FLAG_NORMAL, &timezone_cb},
         {0, _("Language"),      "-", RG_DIALOG_FLAG_NORMAL, &language_cb},
         #ifdef RG_GPIO_LED // Only show disk LED option if disk LED GPIO pin is defined
@@ -2043,6 +2110,7 @@ void rg_gui_options_menu(void)
         {0, _("Filter"),        "-", RG_DIALOG_FLAG_NORMAL, &filter_update_cb},
         {0, _("Border"),        "-", RG_DIALOG_FLAG_NORMAL, &border_update_cb},
         {0, _("Speed"),         "-", RG_DIALOG_FLAG_NORMAL, &speedup_update_cb},
+        {0, _("Screen timeout"), "-", RG_DIALOG_FLAG_NORMAL, &screen_timeout_cb},
         // {0, _("Misc options"),  NULL, RG_DIALOG_FLAG_NORMAL, &misc_options_cb},
         #if CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S3 // && !RG_BUILD_RELEASE
         {0, _("Overclock"),     "-", RG_DIALOG_FLAG_NORMAL, &overclock_cb},
@@ -2081,6 +2149,7 @@ void rg_gui_about_menu(void)
         // {1, _("View credits", NULL, RG_DIALOG_FLAG_NORMAL, NULL},
         {2, _("Debug menu"), NULL, RG_DIALOG_FLAG_NORMAL, NULL},
         {3, _("Reset settings"), NULL, RG_DIALOG_FLAG_NORMAL, NULL},
+        {6, _("Recovery mode"), NULL, RG_DIALOG_FLAG_NORMAL, NULL},
         {5, _("Power off"), NULL, RG_DIALOG_FLAG_NORMAL, NULL},
         RG_DIALOG_END,
     };
@@ -2113,6 +2182,12 @@ void rg_gui_about_menu(void)
             case 5:
                 if (rg_gui_confirm(_("Power off system?"), NULL, false)) {
                     rg_system_sleep();
+                    return;
+                }
+                break;
+            case 6:
+                if (rg_gui_confirm(_("Reboot to recovery?"), NULL, false)) {
+                    rg_system_enter_recovery();
                     return;
                 }
                 break;
