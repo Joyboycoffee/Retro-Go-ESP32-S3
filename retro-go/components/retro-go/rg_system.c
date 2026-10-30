@@ -493,7 +493,25 @@ rg_app_t *rg_system_init(int sampleRate, const rg_handlers_t *handlers, void *_u
     if (app.isColdBoot && (rg_input_read_gamepad() & RG_KEY_Y))
     {
         RG_LOGI("Dual-Boot Trigger: Y button held down -> Launching Bruce!\n");
-        rg_system_switch_app("bruce", NULL, NULL, 0);
+        const esp_partition_t *bruce_part = esp_partition_find_first(
+            ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_5, "bruce");
+        if (!bruce_part)
+        {
+            bruce_part = esp_partition_find_first(
+                ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, "bruce");
+        }
+
+        if (bruce_part)
+        {
+            esp_err_t err = esp_ota_set_boot_partition(bruce_part);
+            RG_LOGI("esp_ota_set_boot_partition(bruce) returned: 0x%02X\n", err);
+            rg_task_delay(50);
+            esp_restart();
+        }
+        else
+        {
+            RG_LOGE("Dual-boot partition 'bruce' not found!\n");
+        }
     }
 
     // Test for recovery request as early as possible
