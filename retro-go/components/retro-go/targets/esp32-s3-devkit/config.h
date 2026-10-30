@@ -16,7 +16,7 @@
 // Video
 #define RG_SCREEN_DRIVER            0   // 0 = ILI9341/ST7789
 #define RG_SCREEN_HOST              SPI2_HOST
-#define RG_SCREEN_SPEED             SPI_MASTER_FREQ_20M // 20MHz for rock-solid signal integrity over hand-soldered wires
+#define RG_SCREEN_SPEED             SPI_MASTER_FREQ_40M // 40MHz for smooth 60 FPS
 #define RG_SCREEN_BACKLIGHT         1
 #define RG_SCREEN_WIDTH             320
 #define RG_SCREEN_HEIGHT            240
@@ -41,6 +41,7 @@
     ILI9341_CMD(0xF2, 0x00);                 /* 3Gamma Function Disable */                                       \
     ILI9341_CMD(0x26, 0x01);                 /* Gamma curve selected */                                          \
     ILI9341_CMD(0xE0, 0x0F, 0x31, 0x2B, 0x0C, 0x0E, 0x08, 0x4E, 0xF1, 0x37, 0x07, 0x10, 0x03, 0x0E, 0x09, 0x00); \
+    ILI9341_CMD(0x21);                       /* Display Inversion ON - fixes negative/inverted colors */         \
     ILI9341_CMD(0xE1, 0x00, 0x0E, 0x14, 0x03, 0x11, 0x07, 0x31, 0xC1, 0x48, 0x08, 0x0F, 0x0C, 0x31, 0x36, 0x0F);
 
 
