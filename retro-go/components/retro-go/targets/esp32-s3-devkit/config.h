@@ -34,14 +34,13 @@
     ILI9341_CMD(0xC1, 0x12);                 /* Power control   //SAP[2:0];BT[3:0] */                            \
     ILI9341_CMD(0xC5, 0x32, 0x3C);           /* VCM control */                                                   \
     ILI9341_CMD(0xC7, 0x91);                 /* VCM control2 */                                                  \
-    ILI9341_CMD(0x36, 0xC8);                 /* Memory Access Control (MY|MX|BGR) - Upright orientation */       \
+    ILI9341_CMD(0x36, 0xC0);                 /* Memory Access Control (MY|MX|RGB) - Upright RGB color mode */   \
     ILI9341_CMD(0xB1, 0x00, 0x10);           /* Frame Rate Control (1B=70, 1F=61, 10=119) */                     \
     ILI9341_CMD(0xB6, 0x0A, 0xA2);           /* Display Function Control */                                      \
     ILI9341_CMD(0xF6, 0x01, 0x30);                                                                               \
     ILI9341_CMD(0xF2, 0x00);                 /* 3Gamma Function Disable */                                       \
     ILI9341_CMD(0x26, 0x01);                 /* Gamma curve selected */                                          \
     ILI9341_CMD(0xE0, 0x0F, 0x31, 0x2B, 0x0C, 0x0E, 0x08, 0x4E, 0xF1, 0x37, 0x07, 0x10, 0x03, 0x0E, 0x09, 0x00); \
-    ILI9341_CMD(0x21);                       /* Display Inversion ON - fixes negative/inverted colors */         \
     ILI9341_CMD(0xE1, 0x00, 0x0E, 0x14, 0x03, 0x11, 0x07, 0x31, 0xC1, 0x48, 0x08, 0x0F, 0x0C, 0x31, 0x36, 0x0F);
 
 
