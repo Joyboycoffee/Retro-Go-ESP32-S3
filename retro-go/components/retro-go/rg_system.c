@@ -489,6 +489,13 @@ rg_app_t *rg_system_init(int sampleRate, const rg_handlers_t *handlers, void *_u
     rg_storage_init();
     rg_input_init();
 
+    // Dual-Boot: If Y button is held down on power-on, switch to Bruce!
+    if (app.isColdBoot && (rg_input_read_gamepad() & RG_KEY_Y))
+    {
+        RG_LOGI("Dual-Boot Trigger: Y button held down -> Launching Bruce!\n");
+        rg_system_switch_app("bruce", NULL, NULL, 0);
+    }
+
     // Test for recovery request as early as possible
     for (int timeout = 5, btn; (btn = rg_input_read_gamepad() & RG_RECOVERY_BTN) && timeout >= 0; --timeout)
     {

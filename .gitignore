@@ -30,5 +30,10 @@ Desktop.ini
 .DS_Store
 
 build_firmware/
-
 build_firmware_new/
+
+# Dual boot & Bruce local
+bruce/
+dualboot_*.img
+dualboot_builder.py
+temp_bl.bin
