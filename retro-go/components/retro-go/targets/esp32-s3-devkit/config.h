@@ -60,8 +60,12 @@
     {RG_KEY_START,  .num = GPIO_NUM_38, .pullup = 1, .level = 0},\
 }
 
-// Battery
-#define RG_BATTERY_DRIVER           0
+// Battery (ADC1 Channel 3 on GPIO 4 via 1:1 voltage divider)
+#define RG_BATTERY_DRIVER           1
+#define RG_BATTERY_ADC_UNIT         ADC_UNIT_1
+#define RG_BATTERY_ADC_CHANNEL      ADC_CHANNEL_3
+#define RG_BATTERY_CALC_PERCENT(raw) (((raw) * 2.f - 3200.f) / (4200.f - 3200.f) * 100.f)
+#define RG_BATTERY_CALC_VOLTAGE(raw) ((raw) * 2.f * 0.001f)
 
 // Status LED (Disabled to prevent conflict with START on GPIO 38)
 // #define RG_GPIO_LED                 GPIO_NUM_NC

@@ -889,6 +889,7 @@ void rg_system_sleep(void)
     shutdown_cleanup();
     rg_task_delay(1000);
 #ifdef ESP_PLATFORM
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_21, 0); // Wake up on B button (Active-LOW)
     esp_deep_sleep_start();
 #else
     exit(0);

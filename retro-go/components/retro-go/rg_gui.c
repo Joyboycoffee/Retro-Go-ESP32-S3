@@ -2081,6 +2081,7 @@ void rg_gui_about_menu(void)
         // {1, _("View credits", NULL, RG_DIALOG_FLAG_NORMAL, NULL},
         {2, _("Debug menu"), NULL, RG_DIALOG_FLAG_NORMAL, NULL},
         {3, _("Reset settings"), NULL, RG_DIALOG_FLAG_NORMAL, NULL},
+        {5, _("Power off"), NULL, RG_DIALOG_FLAG_NORMAL, NULL},
         RG_DIALOG_END,
     };
 
@@ -2108,6 +2109,12 @@ void rg_gui_about_menu(void)
                 break;
             case 4:
                 rg_gui_options_menu();
+                break;
+            case 5:
+                if (rg_gui_confirm(_("Power off system?"), NULL, false)) {
+                    rg_system_sleep();
+                    return;
+                }
                 break;
             default:
                 return;
@@ -2287,6 +2294,7 @@ void rg_gui_game_menu(void)
         {5500, _("Options"),         NULL, have_option_btn ? RG_DIALOG_FLAG_HIDDEN : RG_DIALOG_FLAG_NORMAL, NULL},
         {6000, _("About"),           NULL, RG_DIALOG_FLAG_NORMAL, NULL},
         {7000, _("Quit"),            NULL, RG_DIALOG_FLAG_NORMAL, NULL},
+        {8000, _("Power off"),       NULL, RG_DIALOG_FLAG_NORMAL, NULL},
         RG_DIALOG_END
     };
     int slot, sel;
@@ -2318,6 +2326,10 @@ void rg_gui_game_menu(void)
         case 5500: rg_gui_options_menu(); break;
         case 6000: rg_gui_about_menu(); break;
         case 7000: rg_system_exit(); break;
+        case 8000:
+            if (rg_gui_confirm(_("Power off system?"), NULL, false))
+                rg_system_sleep();
+            break;
     }
 
     rg_audio_set_mute(false);
