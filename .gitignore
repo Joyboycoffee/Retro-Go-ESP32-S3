@@ -30,3 +30,5 @@ Desktop.ini
 .DS_Store
 
 build_firmware/
+
+build_firmware_new/

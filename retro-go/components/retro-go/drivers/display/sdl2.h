@@ -33,6 +33,10 @@ static void lcd_set_backlight(float percent)
 {
 }
 
+static void lcd_set_backlight_fade(float percent, int fade_time_ms)
+{
+}
+
 static inline uint16_t *lcd_get_buffer(size_t length)
 {
     return lcd_buffer;

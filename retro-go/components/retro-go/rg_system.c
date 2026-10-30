@@ -262,11 +262,30 @@ static void system_monitor_task(void *arg)
         update_indicators(false);
 
         int screen_timeout = rg_settings_get_number(NS_GLOBAL, "ScreenTimeout", 0);
-        if (screen_timeout > 0 && !rg_display_is_sleeping())
+        if (screen_timeout > 0)
         {
-            if (rg_system_timer() - rg_input_get_last_activity() >= (int64_t)screen_timeout * 1000000LL)
+            int64_t elapsed_us = rg_system_timer() - rg_input_get_last_activity();
+            int64_t timeout_us = (int64_t)screen_timeout * 1000000LL;
+            int64_t dim_delay_us = (screen_timeout >= 30) ? (timeout_us - 10000000LL) : (timeout_us - 5000000LL);
+            if (dim_delay_us < 0)
+                dim_delay_us = timeout_us * 2 / 3;
+
+            rg_screen_state_t current_state = rg_display_get_screen_state();
+
+            if (elapsed_us >= timeout_us)
             {
-                rg_display_set_sleeping(true);
+                if (current_state != RG_SCREEN_STATE_SLEEP)
+                    rg_display_set_screen_state(RG_SCREEN_STATE_SLEEP);
+            }
+            else if (elapsed_us >= dim_delay_us)
+            {
+                if (current_state == RG_SCREEN_STATE_AWAKE)
+                    rg_display_set_screen_state(RG_SCREEN_STATE_DIMMED);
+            }
+            else
+            {
+                if (current_state != RG_SCREEN_STATE_AWAKE)
+                    rg_display_set_screen_state(RG_SCREEN_STATE_AWAKE);
             }
         }
 

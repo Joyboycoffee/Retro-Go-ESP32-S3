@@ -122,6 +122,14 @@ void rg_display_set_rotation(display_rotation_t rotation);
 display_rotation_t rg_display_get_rotation(void);
 void rg_display_set_backlight(display_backlight_t percent);
 display_backlight_t rg_display_get_backlight(void);
+typedef enum {
+    RG_SCREEN_STATE_AWAKE = 0,
+    RG_SCREEN_STATE_DIMMED,
+    RG_SCREEN_STATE_SLEEP,
+} rg_screen_state_t;
+
+void rg_display_set_screen_state(rg_screen_state_t state);
+rg_screen_state_t rg_display_get_screen_state(void);
 void rg_display_set_sleeping(bool sleep);
 bool rg_display_is_sleeping(void);
 void rg_display_set_border(const char *filename);

@@ -32,6 +32,7 @@ static void lcd_deinit(void);
 static void lcd_sync(void);
 static void lcd_set_rotation(int rotation);
 static void lcd_set_backlight(float percent);
+static void lcd_set_backlight_fade(float percent, int fade_time_ms);
 static void lcd_set_window(int left, int top, int width, int height);
 static inline uint16_t *lcd_get_buffer(size_t length);
 static inline void lcd_send_buffer(uint16_t *buffer, size_t length);
@@ -459,22 +460,41 @@ void rg_display_set_backlight(display_backlight_t percent)
     lcd_set_backlight(config.backlight);
 }
 
-static bool display_sleeping = false;
+static rg_screen_state_t screen_state = RG_SCREEN_STATE_AWAKE;
+
+void rg_display_set_screen_state(rg_screen_state_t state)
+{
+    if (screen_state == state)
+        return;
+    screen_state = state;
+    if (state == RG_SCREEN_STATE_SLEEP)
+    {
+        lcd_set_backlight_fade(0, 400);
+    }
+    else if (state == RG_SCREEN_STATE_DIMMED)
+    {
+        float dim_level = RG_MIN(15.f, config.backlight * 0.3f);
+        lcd_set_backlight_fade(RG_MAX(dim_level, 5.f), 800);
+    }
+    else
+    {
+        lcd_set_backlight_fade(config.backlight, 200);
+    }
+}
+
+rg_screen_state_t rg_display_get_screen_state(void)
+{
+    return screen_state;
+}
 
 void rg_display_set_sleeping(bool sleep)
 {
-    if (display_sleeping == sleep)
-        return;
-    display_sleeping = sleep;
-    if (sleep)
-        lcd_set_backlight(0);
-    else
-        lcd_set_backlight(config.backlight);
+    rg_display_set_screen_state(sleep ? RG_SCREEN_STATE_SLEEP : RG_SCREEN_STATE_AWAKE);
 }
 
 bool rg_display_is_sleeping(void)
 {
-    return display_sleeping;
+    return (screen_state == RG_SCREEN_STATE_SLEEP);
 }
 
 display_backlight_t rg_display_get_backlight(void)

@@ -145,19 +145,24 @@ static void spi_deinit(void)
         RG_LOGE("Failed to properly terminate SPI driver!");
 }
 
-static void lcd_set_backlight(float percent)
+static void lcd_set_backlight_fade(float percent, int fade_time_ms)
 {
     float level = RG_MIN(RG_MAX(percent / 100.f, 0), 1.f);
     int error_code = 0;
 
 #if defined(RG_GPIO_LCD_BCKL)
-    error_code = ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0x1FFF * level, 50, 0);
+    error_code = ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0x1FFF * level, fade_time_ms, 0);
 #endif
 
     if (error_code)
         RG_LOGE("failed setting backlight to %d%% (0x%02X)\n", (int)(100 * level), error_code);
     else
         RG_LOGI("backlight set to %d%%\n", (int)(100 * level));
+}
+
+static void lcd_set_backlight(float percent)
+{
+    lcd_set_backlight_fade(percent, 50);
 }
 
 static void lcd_set_window(int left, int top, int width, int height)

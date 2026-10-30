@@ -246,11 +246,16 @@ static void input_task(void *arg)
             if (local_gamepad_state != 0)
             {
                 last_activity_time = rg_system_timer();
-                if (rg_display_is_sleeping())
+                rg_screen_state_t state = rg_display_get_screen_state();
+                if (state == RG_SCREEN_STATE_SLEEP)
                 {
-                    rg_display_set_sleeping(false);
+                    rg_display_set_screen_state(RG_SCREEN_STATE_AWAKE);
                     local_gamepad_state = 0;
                     memset(debounce, 0, sizeof(debounce));
+                }
+                else if (state == RG_SCREEN_STATE_DIMMED)
+                {
+                    rg_display_set_screen_state(RG_SCREEN_STATE_AWAKE);
                 }
             }
             gamepad_state = local_gamepad_state;
