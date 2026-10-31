@@ -75,14 +75,35 @@ bool rg_input_read_battery_raw(rg_battery_t *out)
     bool charging = false;
 
 #if RG_BATTERY_DRIVER == 1 /* ADC */
-    for (int i = 0; i < 4; ++i)
+    const int SAMPLES_COUNT = 16;
+    uint32_t samples[SAMPLES_COUNT];
+    for (int i = 0; i < SAMPLES_COUNT; ++i)
     {
         int value = adc_get_raw(RG_BATTERY_ADC_UNIT, RG_BATTERY_ADC_CHANNEL);
         if (value < 0)
             return false;
-        raw_value += esp_adc_cal_raw_to_voltage(value, &adc_chars);
+        samples[i] = esp_adc_cal_raw_to_voltage(value, &adc_chars);
     }
-    raw_value /= 4;
+    // Sort samples to trim transient spikes/dips
+    for (int i = 0; i < SAMPLES_COUNT - 1; ++i)
+    {
+        for (int j = i + 1; j < SAMPLES_COUNT; ++j)
+        {
+            if (samples[j] < samples[i])
+            {
+                uint32_t tmp = samples[i];
+                samples[i] = samples[j];
+                samples[j] = tmp;
+            }
+        }
+    }
+    // Discard 3 lowest and 3 highest, average middle 10
+    uint32_t sum = 0;
+    for (int i = 3; i < 13; ++i)
+    {
+        sum += samples[i];
+    }
+    raw_value = sum / 10;
     if (raw_value < 500)
         present = false; // Purely USB powered with battery unplugged
 #elif RG_BATTERY_DRIVER == 2 /* I2C */
@@ -268,13 +289,30 @@ static void input_task(void *arg)
             rg_battery_t temp = {0};
             if (rg_input_read_battery_raw(&temp))
             {
-                if (fabsf(battery_state.level - temp.level) < RG_BATTERY_UPDATE_THRESHOLD)
+                static float ema_level = -1.f;
+                static float ema_volts = -1.f;
+                if (ema_level < 0.f)
+                {
+                    ema_level = temp.level;
+                    ema_volts = temp.volts;
+                }
+                else
+                {
+                    ema_level = ema_level * 0.88f + temp.level * 0.12f;
+                    ema_volts = ema_volts * 0.88f + temp.volts * 0.12f;
+                }
+
+                temp.level = roundf(ema_level);
+                temp.volts = ema_volts;
+
+                // Deadband hysteresis: suppress noise fluctuations
+                if (fabsf(battery_state.level - temp.level) < 1.0f)
                     temp.level = battery_state.level;
-                if (fabsf(battery_state.volts - temp.volts) < RG_BATTERY_UPDATE_THRESHOLD_VOLT)
+                if (fabsf(battery_state.volts - temp.volts) < 0.020f)
                     temp.volts = battery_state.volts;
             }
             battery_state = temp;
-            next_battery_update = rg_system_timer() + 2 * 1000000; // update every 2 seconds
+            next_battery_update = rg_system_timer() + 1000000; // 1 second smooth interval
         }
 
         rg_task_delay(10);

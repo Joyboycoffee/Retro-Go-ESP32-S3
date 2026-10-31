@@ -65,7 +65,7 @@
 #define RG_BATTERY_DRIVER           1
 #define RG_BATTERY_ADC_UNIT         ADC_UNIT_1
 #define RG_BATTERY_ADC_CHANNEL      ADC_CHANNEL_3
-#define RG_BATTERY_DIVIDER_RATIO    2.028f // Calibrated for two 10k resistors (3.96V multimeter reading)
+#define RG_BATTERY_DIVIDER_RATIO    2.038f // Calibrated for two 10k resistors (3.91V multimeter reading)
 #define RG_BATTERY_CALC_PERCENT(raw) (((raw) * RG_BATTERY_DIVIDER_RATIO - 3300.f) / (4070.f - 3300.f) * 100.f)
 #define RG_BATTERY_CALC_VOLTAGE(raw) ((raw) * RG_BATTERY_DIVIDER_RATIO * 0.001f)
 
