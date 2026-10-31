@@ -83,6 +83,8 @@ bool rg_input_read_battery_raw(rg_battery_t *out)
         raw_value += esp_adc_cal_raw_to_voltage(value, &adc_chars);
     }
     raw_value /= 4;
+    if (raw_value < 500)
+        present = false; // Purely USB powered with battery unplugged
 #elif RG_BATTERY_DRIVER == 2 /* I2C */
     uint8_t data[5];
     if (!rg_i2c_read(0x20, -1, &data, 5))

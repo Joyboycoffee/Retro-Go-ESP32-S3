@@ -568,6 +568,12 @@ void rg_gui_draw_icons(void)
 
     if (battery.present)
     {
+        char bat_txt[8];
+        snprintf(bat_txt, sizeof(bat_txt), "%d%%", (int)battery.level);
+        rg_rect_t bat_rect = TEXT_RECT(bat_txt, 0);
+        right += bat_rect.width + 3;
+        rg_gui_draw_text(-right, 0, 0, bat_txt, C_SILVER, gui.screen_buffer ? C_TRANSPARENT : C_BLACK, 0);
+
         right += 22;
 
         int width = 16;
@@ -581,7 +587,7 @@ void rg_gui_draw_icons(void)
         rg_color_t color_empty = C_BLACK;
 
         rg_gui_draw_rect(x_pos, y_pos, width + 2, height, 1, color_border, C_NONE);
-        rg_gui_draw_rect(x_pos + width + 2, y_pos + 2, 2, height - 4, 1, color_border, C_NONE);
+        rg_gui_draw_rect(x_pos + width + 2, y_pos + 2, 2, height - 4, 0, 0, color_border);
         rg_gui_draw_rect(x_pos + 1, y_pos + 1, width_fill, height - 2, 0, 0, color_fill);
         rg_gui_draw_rect(x_pos + 1 + width_fill, y_pos + 1, width - width_fill, height - 2, 0, 0, color_empty);
     }
