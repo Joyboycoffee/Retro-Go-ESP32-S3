@@ -14,15 +14,22 @@ var display = require("display");
 var keyboard = require("keyboard");
 var storage = require("storage");
 
-var device = null;
-try {
-    device = require("device");
-} catch (errDev) {}
+// In MicroQuickJS, top-level `var` defines a property on the global object.
+// DO NOT declare `var device = ...` or `var gpio = ...`, as that overwrites
+// the built-in runtime globals `device` and `gpio` with null/undefined!
+var dev = (typeof device !== "undefined" && device) ? device : null;
+if (!dev) {
+    try {
+        dev = require("device");
+    } catch (errDev) {}
+}
 
-var gpio = null;
-try {
-    gpio = require("gpio");
-} catch (errGpio) {}
+var io = (typeof gpio !== "undefined" && gpio) ? gpio : null;
+if (!io) {
+    try {
+        io = require("gpio");
+    } catch (errGpio) {}
+}
 
 // Color Palette
 var BLACK = display.color(0, 0, 0);
@@ -101,14 +108,20 @@ function get12HourComponents() {
 // Returns -1 when the value is unavailable so the UI shows "--%" instead of a fake number.
 function getBatteryLevel() {
     try {
-        if (device && typeof device.getBatteryCharge === "function") {
+        if (dev && typeof dev.getBatteryCharge === "function") {
+            var bat = dev.getBatteryCharge();
+            if (typeof bat === "number" && bat >= 0 && bat <= 100) return Math.round(bat);
+        }
+    } catch (errBat0) {}
+    try {
+        if (typeof device !== "undefined" && device && typeof device.getBatteryCharge === "function") {
             var bat = device.getBatteryCharge();
             if (typeof bat === "number" && bat >= 0 && bat <= 100) return Math.round(bat);
         }
     } catch (errBat) {}
     try {
-        if (device && typeof device.getBatteryDetailed === "function") {
-            var det = device.getBatteryDetailed();
+        if (dev && typeof dev.getBatteryDetailed === "function") {
+            var det = dev.getBatteryDetailed();
             if (det && typeof det.battery_percent === "number" &&
                 det.battery_percent >= 0 && det.battery_percent <= 100) {
                 return Math.round(det.battery_percent);
@@ -262,40 +275,59 @@ if (!config.password) {
 // A *or* START (see boards/retro-handheld-s3/interface.cpp), which is why pressing A used to
 // open the keypad. Reading GPIO 40 directly ignores every other key.
 var SELECT_PIN = 40;
-try { gpio.pinMode(SELECT_PIN, "input", "up"); } catch (errPin) {}
+try {
+    if (io && typeof io.pinMode === "function") {
+        io.pinMode(SELECT_PIN, "input", "up");
+    } else if (typeof gpio !== "undefined" && gpio && typeof gpio.pinMode === "function") {
+        gpio.pinMode(SELECT_PIN, "input", "up");
+    }
+} catch (errPin) {}
 
 function selectIsDown() {
     try {
-        return gpio.digitalRead(SELECT_PIN) === 0;
+        if (io && typeof io.digitalRead === "function") {
+            return io.digitalRead(SELECT_PIN) === 0;
+        }
+        if (typeof gpio !== "undefined" && gpio && typeof gpio.digitalRead === "function") {
+            return gpio.digitalRead(SELECT_PIN) === 0;
+        }
     } catch (errRead) {}
     return false;
 }
 
-// Debounced press: SELECT must read LOW on two reads 30ms apart.
+// Debounced press: SELECT must read LOW on two reads 40ms apart.
 function isUnlockRequested() {
     if (!selectIsDown()) return false;
-    delay(30);
+    delay(40);
     return selectIsDown();
+}
+
+// Swallow all key flags that accumulated in the firmware input handler.
+function drainKeys() {
+    try {
+        for (var i = 0; i < 3; i++) {
+            if (keyboard.getEscPress) keyboard.getEscPress();
+            if (keyboard.getSelPress) keyboard.getSelPress();
+            if (keyboard.getAnyPress) keyboard.getAnyPress();
+            if (keyboard.getPrevPress) keyboard.getPrevPress();
+            if (keyboard.getNextPress) keyboard.getNextPress();
+            delay(15);
+        }
+    } catch (errDrain) {}
 }
 
 // The PIN pad treats SELECT as "cancel", so wait until the finger is off the button
 // before opening it (otherwise the pad would close the instant it opens).
 function waitSelectReleased() {
     var guard = 0;
-    while (selectIsDown() && guard < 100) { // max ~2s
+    while (selectIsDown() && guard < 150) { // max ~3s
         delay(20);
         guard++;
     }
-    delay(40);
-}
-
-// Swallow any key flags that piled up while the keypad / penalty screen was active.
-function drainKeys() {
-    try {
-        for (var i = 0; i < 3; i++) {
-            if (keyboard.getAnyPress) keyboard.getAnyPress();
-        }
-    } catch (errDrain) {}
+    // Give background InputHandler (runs every 150ms) time to register that
+    // SELECT was released, then clear EscPress so numKeyboard isn't instantly aborted!
+    delay(200);
+    drainKeys();
 }
 
 // Render the entire static lock screen (ONLY called once on entry/reload)

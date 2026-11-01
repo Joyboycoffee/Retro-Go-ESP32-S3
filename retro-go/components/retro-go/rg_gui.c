@@ -560,16 +560,12 @@ void rg_gui_draw_image(int x_pos, int y_pos, int width, int height, bool resampl
 //  Retro-Go status bar icons (beige theme)  --  replaces rg_gui_draw_icons()
 //
 //  * Wi-Fi  : dot + three 90-degree (quarter-circle) arcs radiating outwards
+//             - Connected: Vibrant Green with signal strength arcs based on RSSI
+//             - Connecting / Searching: Blue blinking radar wave animation
+//             - Disconnected: Muted dim gray
 //  * Battery: VERTICAL cell, terminal nub on top, segmented fill, drawn in beige
 //  * Percent: drawn to the LEFT of the battery, never inside / overlapping it
-//
-//  Why the old percentage was invisible: it was drawn with a NEGATIVE y
-//  (icon_top + (icon_h - text_h)/2 == -1).  Retro-Go treats a negative
-//  coordinate as "measured from the bottom/right edge", so the text landed on
-//  the last pixel row of the screen.  Every y used below is >= 0.
-//
-//  Spliced into rg_gui.c by apply_status_icons.py (it replaces the whole old
-//  rg_gui_draw_icons() function).  Needs nothing outside rg_gui.c.
+//  * Top padding: top_y = 5px so icons and text never hug the screen bezel
 // =============================================================================
 
 #define STATUS_COLOR        C_BEIGE   /* 0xF7BB, the Retro-Go theme beige            */
@@ -672,7 +668,7 @@ static void status_wifi_size(int bar_h, int *w, int *h)
     *h = hh;
 }
 
-static void status_draw_wifi(int x, int y, int w, int h, bool connected)
+static void status_draw_wifi(int x, int y, int w, int h, int state, int rssi)
 {
     uint16_t px[STATUS_ICON_MAX * STATUS_ICON_MAX];
     const uint16_t bg = status_bg();
@@ -683,25 +679,68 @@ static void status_draw_wifi(int x, int y, int w, int h, bool connected)
     const float thick = (r3 <= 8.0f) ? 0.50f : 0.62f;       // half line-width: 1px lines on tiny bars
     const float dot_r2 = (r3 <= 8.0f) ? 1.0f : 2.0f;        // plus-shaped dot on tiny bars
 
+    uint16_t dot_color = bg;
+    uint16_t active_color = bg;
+    uint16_t dim_color = bg;
+    int num_bars = 0;
+
+    if (state == RG_NETWORK_CONNECTED)
+    {
+        // Connected: Vibrant Emerald Green
+        dot_color    = 0x27E6;
+        active_color = 0x27E6;
+        dim_color    = 0x0A42; // Muted dark green for unlit arcs
+
+        if (rssi != 0)
+        {
+            if (rssi < -80)      num_bars = 1;
+            else if (rssi < -68) num_bars = 2;
+            else                 num_bars = 3;
+        }
+        else
+        {
+            num_bars = 3;
+        }
+    }
+    else if (state == RG_NETWORK_CONNECTING)
+    {
+        // Connecting / Searching: Blue blinking radar wave animation
+        bool blink = ((rg_system_timer() / 300000) & 1) != 0;
+        int wave = (rg_system_timer() / 200000) % 4; // 0=dot, 1=1 arc, 2=2 arcs, 3=3 arcs
+        dot_color    = blink ? 0x249F : 0x01D3;      // Dodger Blue blinking
+        active_color = 0x249F;
+        dim_color    = 0x0112;                       // Dark blue for unlit wave
+        num_bars     = wave;
+    }
+    else // Disconnected
+    {
+        dot_color    = 0x7BEF; // Dim gray
+        active_color = 0x7BEF;
+        dim_color    = 0x39E7;
+        num_bars     = 0;
+    }
+
     for (int yy = 0; yy < h; yy++)
     {
         for (int xx = 0; xx < w; xx++)
         {
             float dx = xx - cx;
             float dy = cy - yy;                      // up is positive
-            float d = sqrtf(dx * dx + dy * dy);
+            float d2 = dx * dx + dy * dy;
+            float d = sqrtf(d2);
             uint16_t c = bg;
 
-            if (dx * dx + dy * dy <= dot_r2)         // the dot
-                c = STATUS_COLOR;
+            if (d2 <= dot_r2)                        // the dot
+            {
+                c = dot_color;
+            }
             else if (dy > 0.0f && fabsf(dx) <= dy + 0.35f)   // inside the +-45deg cone = quarter circle
             {
                 for (int k = 0; k < 3; k++)
                 {
                     if (fabsf(d - radius[k]) <= thick)
                     {
-                        // "connecting": only the dot + first arc lit, the rest dimmed
-                        c = (connected || k == 0) ? STATUS_COLOR : STATUS_COLOR_DIM;
+                        c = (k < num_bars) ? active_color : dim_color;
                         break;
                     }
                 }
@@ -719,7 +758,8 @@ void rg_gui_draw_icons(void)
     rg_rect_t txt = TEXT_RECT("00:00", 0);
     const int bar_height = txt.height;
     const rg_color_t text_bg = status_bg();
-    int right = gui.margins.right;
+    const int top_y = 5;                             // 5px padding from top edge (no hugging the bezel!)
+    int right = gui.margins.right + 5;                // 5px padding from right edge
 
     // 1) Battery: vertical cell at the far right, percentage on its LEFT
     if (battery.present)
@@ -730,23 +770,23 @@ void rg_gui_draw_icons(void)
         int bw, bh;
         status_battery_size(bar_height, &bw, &bh);
         right += bw;
-        status_draw_battery(-right, RG_MAX(0, (bar_height - bh) / 2), bw, bh, level);
+        status_draw_battery(-right, top_y + RG_MAX(0, (bar_height - bh) / 2), bw, bh, level);
 
         char bat_txt[8];
         snprintf(bat_txt, sizeof(bat_txt), "%d%%", level);
         rg_rect_t bat_rect = TEXT_RECT(bat_txt, 0);
         right += 3 + bat_rect.width;                       // 3px gap, then the text box
-        rg_gui_draw_text(-right, 0, 0, bat_txt, STATUS_COLOR, text_bg, 0);   // y = 0 (never negative!)
+        rg_gui_draw_text(-right, top_y, 0, bat_txt, STATUS_COLOR, text_bg, 0);
     }
 
     // 2) Wi-Fi arcs
-    if (network.state > RG_NETWORK_DISCONNECTED)
+    if (network.state > RG_NETWORK_DISABLED)
     {
         int ww, wh;
         status_wifi_size(bar_height, &ww, &wh);
         right += 6 + ww;
-        status_draw_wifi(-right, RG_MAX(0, (bar_height - wh) / 2), ww, wh,
-                         network.state == RG_NETWORK_CONNECTED);
+        status_draw_wifi(-right, top_y + RG_MAX(0, (bar_height - wh) / 2), ww, wh,
+                         network.state, network.rssi);
     }
 
     // 3) Clock text
@@ -770,7 +810,7 @@ void rg_gui_draw_icons(void)
 
         rg_rect_t clock_txt = TEXT_RECT(buffer, 0);
         right += 6 + clock_txt.width;
-        rg_gui_draw_text(-right, 0, 0, buffer, STATUS_COLOR, text_bg, 0);
+        rg_gui_draw_text(-right, top_y, 0, buffer, STATUS_COLOR, text_bg, 0);
     }
 }
 
