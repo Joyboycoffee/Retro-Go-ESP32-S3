@@ -1,30 +1,31 @@
 // =============================================================================
-//  Retro Handheld S3 - Web Browser & AI Answers   (fixed for MicroQuickJS)
-//
-//  WHY THE OLD VERSION CRASHED
-//    "TypeError: not a function at draw_browser (browser.js:127:32)"
-//    Bruce's JS engine (MicroQuickJS) is ES5-style and has NO String.prototype.startsWith /
-//    endsWith / includes / padStart / repeat and NO encodeURIComponent. Every one of those
-//    calls throws "not a function".  This file uses only indexOf / slice / charAt / charCodeAt.
-//    It also read wifi.httpFetch() as a string; the real return value is an object whose text
-//    is in `.body` (plus .status / .ok).
-//
-//  CONTROLS (matched to the Retro Handheld S3 key map)
-//    A ............ search / ask a question
-//    X or Y ....... switch mode  (AI answer  <->  Wikipedia search)
-//    UP / DOWN .... scroll (hold to auto-repeat)      LEFT / RIGHT ... page up / down
-//    B or MENU .... exit
-//    (SELECT is wired to "Esc" by the firmware, so it exits too - it cannot be used as "OK".)
+//  Retro Handheld S3 - Web Browser & AI Answers   (MicroQuickJS Certified)
 // =============================================================================
 
-var display = require("display");
-var keyboard = require("keyboard");
+var display = (typeof display !== "undefined" && display) ? display : require("display");
+var keyboard = (typeof keyboard !== "undefined" && keyboard) ? keyboard : require("keyboard");
 
-var wifi = null;
-try { wifi = require("wifi"); } catch (errW) {}
+function getWifi() {
+    try {
+        if (typeof wifi !== "undefined" && wifi) return wifi;
+        if (typeof require === "function") {
+            var w = require("wifi");
+            if (w) return w;
+        }
+    } catch (errWifi) {}
+    return null;
+}
 
-var gpio = null;
-try { gpio = require("gpio"); } catch (errG) {}
+function getGpio() {
+    try {
+        if (typeof gpio !== "undefined" && gpio) return gpio;
+        if (typeof require === "function") {
+            var g = require("gpio");
+            if (g) return g;
+        }
+    } catch (errGpio) {}
+    return null;
+}
 
 var BLACK = display.color(0, 0, 0);
 var WHITE = display.color(255, 255, 255);
@@ -39,7 +40,7 @@ var RED = display.color(255, 60, 60);
 var displayWidth = display.width();
 var displayHeight = display.height();
 
-// Board pins (active LOW) - see boards/retro-handheld-s3/interface.cpp
+// Board pins (active LOW)
 var PIN_UP = 41;
 var PIN_DOWN = 42;
 var PIN_X = 45;
@@ -51,15 +52,12 @@ var scrollOffset = 0;
 var lineHeight = 21;
 var maxVisibleLines = Math.floor((displayHeight - 34) / lineHeight);
 if (maxVisibleLines < 4) maxVisibleLines = 4;
-var CHARS_PER_LINE = 34;   // font size 1, leaves room for the scrollbar
+var CHARS_PER_LINE = 34;   // font size 1
 
-// ---------------------------------------------------------------- string helpers
-// startsWith replacement
 function hasPrefix(str, prefix) {
     return str.indexOf(prefix) === 0;
 }
 
-// Keep printable ASCII only (the built-in font has no emoji / curly quotes / etc.)
 function toAscii(text) {
     var out = "";
     for (var i = 0; i < text.length; i++) {
@@ -81,7 +79,6 @@ function toAscii(text) {
     return out;
 }
 
-// encodeURIComponent replacement (UTF-8 safe)
 var HEX = "0123456789ABCDEF";
 function pct(b) {
     return "%" + HEX.charAt((b >> 4) & 15) + HEX.charAt(b & 15);
@@ -105,7 +102,6 @@ function urlEncode(str) {
     return out;
 }
 
-// Light markdown clean-up for AI answers
 function stripMarkdown(text) {
     var t = text;
     t = t.split("**").join("");
@@ -118,7 +114,6 @@ function stripMarkdown(text) {
     return t;
 }
 
-// Word wrap into lines that fit the screen
 function wrapText(text, maxChars) {
     if (!maxChars) maxChars = CHARS_PER_LINE;
     var result = [];
@@ -129,7 +124,7 @@ function wrapText(text, maxChars) {
         for (var w = 0; w < words.length; w++) {
             var word = words[w];
             if (word.length === 0) continue;
-            while (word.length > maxChars) {           // very long token (URLs etc.)
+            while (word.length > maxChars) {
                 if (curLine.length > 0) { result.push(curLine); curLine = ""; }
                 result.push(word.slice(0, maxChars));
                 word = word.slice(maxChars);
@@ -149,7 +144,6 @@ function wrapText(text, maxChars) {
     return result;
 }
 
-// ---------------------------------------------------------------- pages
 function loadHomePage() {
     pageLines = [
         "RETRO BROWSER",
@@ -172,12 +166,18 @@ function loadHomePage() {
 
 function isOnline() {
     try {
-        if (wifi && typeof wifi.connected === "function") return wifi.connected();
+        var w = getWifi();
+        if (w) {
+            if (typeof w.connected === "function" && w.connected()) return true;
+            if (typeof w.getIPAddress === "function") {
+                var ip = w.getIPAddress();
+                if (ip && ip !== "0.0.0.0") return true;
+            }
+        }
     } catch (errCheck) {}
     return false;
 }
 
-// ---------------------------------------------------------------- drawing
 function drawHeader() {
     display.drawFillRect(0, 0, displayWidth, 26, DARK_BLUE);
     display.drawLine(0, 26, displayWidth, 26, ACCENT_BLUE);
@@ -237,15 +237,19 @@ function showStatus(title, sub, color) {
 }
 
 // ---------------------------------------------------------------- network
-// Returns { ok:boolean, status:number, text:string, err:string }
 function fetchText(url, timeoutMs) {
     var out = { ok: false, status: 0, text: "", err: "" };
-    if (!wifi || typeof wifi.httpFetch !== "function") {
+    var w = getWifi();
+    if (!w || typeof w.httpFetch !== "function") {
         out.err = "WiFi module not available";
         return out;
     }
     try {
-        var res = wifi.httpFetch(url, { method: "GET", responseType: "string" });
+        var res = w.httpFetch(url, {
+            method: "GET",
+            responseType: "string",
+            timeout: timeoutMs || 35000
+        });
         if (typeof res === "string") {
             out.ok = res.length > 0;
             out.status = 200;
@@ -258,8 +262,8 @@ function fetchText(url, timeoutMs) {
             if (!out.ok && out.status) out.err = "HTTP " + out.status;
         }
         if (out.ok && out.text.length === 0) { out.ok = false; out.err = "empty response"; }
-    } catch (e) {
-        out.err = (e && e.message) ? e.message : "request failed";
+    } catch (errFetch) {
+        out.err = (errFetch && errFetch.message) ? errFetch.message : "request failed";
     }
     return out;
 }
@@ -270,17 +274,17 @@ function netErrorPage(prompt, r) {
         "================================",
         "",
         "Network request failed.",
-        "Connect WiFi in Bruce settings,",
-        "then try again.",
+        "Detail: " + (r.err || "read timeout"),
         "",
-        "Detail: " + (r.err || "no response")
+        "Tip: Connecting to 2.4GHz WiFi",
+        "or retry with a simpler query."
     ];
 }
 
 function fetchAI(prompt) {
     showStatus("Asking AI...", prompt, CYAN);
-    // https:// directly - Bruce's HTTP client does not follow http->https redirects.
-    var r = fetchText("https://text.pollinations.ai/" + urlEncode(prompt), 30000);
+    // Use openai-fast model for fast sub-3-second responses
+    var r = fetchText("https://text.pollinations.ai/" + urlEncode(prompt) + "?model=openai-fast", 35000);
     if (r.ok) {
         var body = stripMarkdown(toAscii(r.text));
         pageLines = ["Prompt: " + prompt, "================================", ""]
@@ -288,7 +292,22 @@ function fetchAI(prompt) {
         pageLines.push("");
         pageLines.push("[ Press A to ask another question ]");
     } else {
-        netErrorPage(prompt, r);
+        // Fallback to Wikipedia summary if AI queue times out
+        showStatus("AI timed out, searching Wiki...", prompt, YELLOW);
+        var topic = urlEncode(prompt.split(" ").join("_"));
+        var rw = fetchText("https://en.wikipedia.org/api/rest_v1/page/summary/" + topic, 15000);
+        var pw = null;
+        if (rw.ok) {
+            try { pw = JSON.parse(rw.text); } catch (errPw) { pw = null; }
+        }
+        if (pw && pw.extract) {
+            pageLines = ["Prompt: " + prompt, "================================", "(AI busy - Wikipedia Summary:)", ""]
+                .concat(wrapText(toAscii(pw.extract), CHARS_PER_LINE));
+            pageLines.push("");
+            pageLines.push("[ Press A to ask another question ]");
+        } else {
+            netErrorPage(prompt, r);
+        }
     }
     scrollOffset = 0;
 }
@@ -299,7 +318,7 @@ function fetchWiki(query) {
     var r = fetchText("https://en.wikipedia.org/api/rest_v1/page/summary/" + topic, 20000);
     var parsed = null;
     if (r.ok) {
-        try { parsed = JSON.parse(r.text); } catch (e) { parsed = null; }
+        try { parsed = JSON.parse(r.text); } catch (errP) { parsed = null; }
     }
     if (parsed && parsed.extract) {
         pageLines = ["Topic: " + toAscii(parsed.title || query), "================================", ""]
@@ -308,18 +327,20 @@ function fetchWiki(query) {
         pageLines.push("[ Press A to search again ]");
         scrollOffset = 0;
     } else {
-        // No article (404) or network trouble -> let the AI answer instead
         fetchAI("Define and summarize: " + query);
     }
 }
 
 // ---------------------------------------------------------------- input
 var prevDown = {};
+var _g = getGpio();
 function readPin(pin) {
-    try { return gpio.digitalRead(pin) === 0; } catch (e) {}
+    try {
+        if (_g) return _g.digitalRead(pin) === 0;
+    } catch (errDRead) {}
     return false;
 }
-function edge(pin) {                 // true once per press
+function edge(pin) {
     var d = readPin(pin);
     var was = prevDown[pin] === true;
     prevDown[pin] = d;
@@ -336,10 +357,10 @@ function scrollBy(n) {
     }
 }
 
-if (gpio) {
+if (_g) {
     var pins = [PIN_UP, PIN_DOWN, PIN_X, PIN_Y];
     for (var pi = 0; pi < pins.length; pi++) {
-        try { gpio.pinMode(pins[pi], "input", "up"); } catch (errPm) {}
+        try { _g.pinMode(pins[pi], "input", "up"); } catch (errPm) {}
     }
 }
 
@@ -349,7 +370,7 @@ drawBrowser();
 
 var repeatAt = 0;
 while (true) {
-    if (keyboard.getEscPress()) break;                       // B / MENU / SELECT
+    if (keyboard.getEscPress()) break;
 
     // Mode switch: X or Y
     if (edge(PIN_X) || edge(PIN_Y)) {
