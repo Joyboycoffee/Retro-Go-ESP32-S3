@@ -318,15 +318,33 @@ if (!config.password) {
 // open the keypad. Reading GPIO 40 directly ignores every other key.
 var SELECT_PIN = 40;
 var START_PIN = 38;
+var Y_PIN = 48;
 try {
     if (io && typeof io.pinMode === "function") {
         io.pinMode(SELECT_PIN, "input", "up");
         io.pinMode(START_PIN, "input", "up");
+        io.pinMode(Y_PIN, "input", "up");
     } else if (typeof gpio !== "undefined" && gpio && typeof gpio.pinMode === "function") {
         gpio.pinMode(SELECT_PIN, "input", "up");
         gpio.pinMode(START_PIN, "input", "up");
+        gpio.pinMode(Y_PIN, "input", "up");
     }
 } catch (errPin) {}
+
+function yIsDown() {
+    try {
+        if (io && typeof io.digitalRead === "function") {
+            return io.digitalRead(Y_PIN) === 0;
+        }
+        if (typeof gpio !== "undefined" && gpio && typeof gpio.digitalRead === "function") {
+            return gpio.digitalRead(Y_PIN) === 0;
+        }
+    } catch (errY) {}
+    try {
+        if (keyboard && typeof keyboard.getPrevPagePress === "function" && keyboard.getPrevPagePress()) return true;
+    } catch (errKeyY) {}
+    return false;
+}
 
 function startIsDown() {
     try {
@@ -447,7 +465,18 @@ var unlocked = false;
 var failedAttempts = 0;
 var lastRenderMin = -1;
 var lastBatMs = 0;
-var quoteIndex = Math.floor(Math.random() * QUOTES.length);
+
+// Guaranteed new quote on every boot/startup
+var lastQ = (config && typeof config.lastQuoteIndex === "number") ? config.lastQuoteIndex : -1;
+var seedVal = 1;
+try {
+    if (typeof time !== "undefined" && time.time) seedVal = time.time();
+    else if (typeof now === "function") seedVal = now();
+} catch (errSeed) {}
+var quoteIndex = (lastQ + 1 + (seedVal % 5)) % QUOTES.length;
+if (quoteIndex === lastQ) quoteIndex = (quoteIndex + 1) % QUOTES.length;
+config.lastQuoteIndex = quoteIndex;
+saveConfig();
 
 // Initial Static Render
 renderStaticScreen(QUOTES[quoteIndex]);
@@ -514,13 +543,18 @@ while (!unlocked) {
             display.drawText("Authenticating BruceOS Session...", displayWidth / 2, displayHeight / 2 + 30);
             display.setTextColor(LIGHT_GRAY, BLACK);
             display.drawText("[ Hold START to change PIN ]", displayWidth / 2, displayHeight / 2 + 48);
+            display.setTextColor(GOLD, BLACK);
+            display.drawText("[ Press Y to skip ]", displayWidth / 2, displayHeight / 2 + 64);
 
-            // Wait 3 seconds, or enter PIN change if START is held
+            // Wait 3 seconds, or skip immediately if Y is pressed, or change PIN if START held
             var wantChangePin = false;
             for (var w = 0; w < 30; w++) {
                 if (startIsDown()) {
                     wantChangePin = true;
                     break;
+                }
+                if (yIsDown()) {
+                    break; // Skip countdown immediately!
                 }
                 delay(100);
             }
