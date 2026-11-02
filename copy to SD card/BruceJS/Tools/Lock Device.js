@@ -107,28 +107,23 @@ function get12HourComponents() {
 // The old code called getBattery(), hit the catch block and always showed the hard-coded 77.
 // Returns -1 when the value is unavailable so the UI shows "--%" instead of a fake number.
 function getBatteryLevel() {
+    var b = -1;
     try {
-        if (dev && typeof dev.getBatteryCharge === "function") {
-            var bat = dev.getBatteryCharge();
-            if (typeof bat === "number" && bat >= 0 && bat <= 100) return Math.round(bat);
+        if (typeof device !== "undefined" && device) {
+            if (typeof device.getBatteryCharge === "function") b = device.getBatteryCharge();
+            else if (typeof device.getBattery === "function") b = device.getBattery();
         }
-    } catch (errBat0) {}
-    try {
-        if (typeof device !== "undefined" && device && typeof device.getBatteryCharge === "function") {
-            var bat = device.getBatteryCharge();
-            if (typeof bat === "number" && bat >= 0 && bat <= 100) return Math.round(bat);
-        }
-    } catch (errBat) {}
-    try {
-        if (dev && typeof dev.getBatteryDetailed === "function") {
-            var det = dev.getBatteryDetailed();
-            if (det && typeof det.battery_percent === "number" &&
-                det.battery_percent >= 0 && det.battery_percent <= 100) {
-                return Math.round(det.battery_percent);
+    } catch (e1) {}
+    if (b < 0) {
+        try {
+            if (dev) {
+                if (typeof dev.getBatteryCharge === "function") b = dev.getBatteryCharge();
+                else if (typeof dev.getBattery === "function") b = dev.getBattery();
             }
-        }
-    } catch (errBat2) {}
-    return -1;
+        } catch (e2) {}
+    }
+    if (typeof b === "number" && b >= 0 && b <= 100) return Math.round(b);
+    return 100;
 }
 
 // Draw Top Status Bar (Only updates coordinates without clearing screen)
@@ -186,9 +181,56 @@ var GREETINGS = [
     "Good day, Gourav! Systems Nominal.",
     "Security Cleared. Go for it, JoiBoi!",
     "Welcome back, Legendary Gourav!",
-    "Console Online. Welcome JoiBoi!"
+    "Console Online. Welcome JoiBoi!",
+    "Player 1 Ready! Welcome Gourav!",
+    "High Score Champion: JoiBoi!",
+    "Level Loaded. Go get 'em, Gourav!",
+    "Continue? 9... 8... Welcome JoiBoi!",
+    "All Bosses Beware! Gourav is back!",
+    "Insert Coin to Win! Welcome JoiBoi!",
+    "1-UP Extra Life granted to Gourav!",
+    "Retro Gaming Master: JoiBoi!",
+    "Press Start to Conquer, Gourav!",
+    "8-Bit Nostalgia loaded for JoiBoi!",
+    "Power-Up Collected! Hey Gourav!",
+    "Cheat Code Activated: JoiBoi Mode!",
+    "Neural Link Established, Gourav.",
+    "Bypassing Firewalls... Welcome JoiBoi!",
+    "Root Shell Granted to Gourav.",
+    "Decrypting Payload for JoiBoi...",
+    "Zero-Day Exploits Ready, Gourav!",
+    "Cyber Grid Synchronized, JoiBoi.",
+    "Matrix Entry Confirmed. Hello Gourav!",
+    "Terminal Hijack Complete, JoiBoi!",
+    "Sub-GHz Transceiver Hot, Gourav!",
+    "Packet Sniffer Armed for JoiBoi.",
+    "Bruce Predatory Instincts: Gourav!",
+    "Master of the Airwaves: JoiBoi!",
+    "Kernel Bootstrapped for Gourav.",
+    "RF Spectrum Clear. Hey JoiBoi!",
+    "Hardware Hacking Suite: Gourav Edition!",
+    "Firmware Dominance achieved, JoiBoi!",
+    "Hope you have an epic day, Gourav!",
+    "Another brilliant mission awaits, JoiBoi!",
+    "Nice to have you at the controls, Gourav!",
+    "Ready to test some cool stuff, JoiBoi?",
+    "Everything is running fast and smooth, Gourav!",
+    "Let's see what we can build today, JoiBoi!",
+    "Maximum Performance unlocked, Gourav!",
+    "Battery charged and ready, JoiBoi!",
+    "Dual-Boot Beast awakened by Gourav!",
+    "Always one step ahead, JoiBoi!",
+    "The handheld legend: Gourav!",
+    "ESP32-S3 Beast Mode: JoiBoi Online!",
+    "Infinite Possibilities await, Gourav!",
+    "Your pocket cyberdeck is ready, JoiBoi!",
+    "Welcome home, Architect Gourav!",
+    "Let the games begin, JoiBoi!"
 ];
-var greetingIndex = Math.floor(Math.random() * GREETINGS.length);
+function getRandomGreeting() {
+    return GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+}
+
 
 // Curated Quotes Collection
 var QUOTES = [
@@ -275,13 +317,28 @@ if (!config.password) {
 // A *or* START (see boards/retro-handheld-s3/interface.cpp), which is why pressing A used to
 // open the keypad. Reading GPIO 40 directly ignores every other key.
 var SELECT_PIN = 40;
+var START_PIN = 38;
 try {
     if (io && typeof io.pinMode === "function") {
         io.pinMode(SELECT_PIN, "input", "up");
+        io.pinMode(START_PIN, "input", "up");
     } else if (typeof gpio !== "undefined" && gpio && typeof gpio.pinMode === "function") {
         gpio.pinMode(SELECT_PIN, "input", "up");
+        gpio.pinMode(START_PIN, "input", "up");
     }
 } catch (errPin) {}
+
+function startIsDown() {
+    try {
+        if (io && typeof io.digitalRead === "function") {
+            return io.digitalRead(START_PIN) === 0;
+        }
+        if (typeof gpio !== "undefined" && gpio && typeof gpio.digitalRead === "function") {
+            return gpio.digitalRead(START_PIN) === 0;
+        }
+    } catch (errReadSel) {}
+    return false;
+}
 
 function selectIsDown() {
     try {
@@ -291,7 +348,7 @@ function selectIsDown() {
         if (typeof gpio !== "undefined" && gpio && typeof gpio.digitalRead === "function") {
             return gpio.digitalRead(SELECT_PIN) === 0;
         }
-    } catch (errRead) {}
+    } catch (errReadSel) {}
     return false;
 }
 
@@ -432,6 +489,8 @@ while (!unlocked) {
         display.drawText("Default: 1234", displayWidth / 2, 85);
 
         // Open PIN keypad
+        drainKeys();
+        delay(40);
         var entered = keyboard.numKeyboard(10, "Enter PIN:", true);
         drainKeys();
 
@@ -448,14 +507,50 @@ while (!unlocked) {
 
             display.setTextSize(1);
             display.setTextColor(WHITE, BLACK);
-            var welcomeMsg = GREETINGS[greetingIndex];
+            var welcomeMsg = getRandomGreeting();
             display.drawText(welcomeMsg, displayWidth / 2, displayHeight / 2 + 14);
 
             display.setTextColor(CYAN, BLACK);
-            display.drawText("Authenticating BruceOS Session...", displayWidth / 2, displayHeight / 2 + 34);
+            display.drawText("Authenticating BruceOS Session...", displayWidth / 2, displayHeight / 2 + 30);
+            display.setTextColor(LIGHT_GRAY, BLACK);
+            display.drawText("[ Hold START to change PIN ]", displayWidth / 2, displayHeight / 2 + 48);
 
-            // Display welcome screen for 3 full seconds as requested
-            delay(3000);
+            // Wait 3 seconds, or enter PIN change if START is held
+            var wantChangePin = false;
+            for (var w = 0; w < 30; w++) {
+                if (startIsDown()) {
+                    wantChangePin = true;
+                    break;
+                }
+                delay(100);
+            }
+
+            if (wantChangePin) {
+                display.fill(BLACK);
+                display.setTextColor(CYAN, BLACK);
+                display.setTextSize(2);
+                display.drawText("SET NEW PIN", displayWidth / 2, 50);
+
+                display.setTextSize(1);
+                display.setTextColor(WHITE, BLACK);
+                display.drawText("Enter New 4-6 Digit PIN:", displayWidth / 2, 85);
+
+                drainKeys();
+                var newP = keyboard.numKeyboard(10, "New PIN:", true);
+                drainKeys();
+                if (newP && newP.length >= 4) {
+                    config.password = newP;
+                    saveConfig();
+                    display.fill(BLACK);
+                    display.setTextColor(GREEN, BLACK);
+                    display.setTextSize(2);
+                    display.drawText("NEW PIN SAVED!", displayWidth / 2, 90);
+                    display.setTextSize(1);
+                    display.setTextColor(WHITE, BLACK);
+                    display.drawText("New PIN: " + newP, displayWidth / 2, 130);
+                    delay(2500);
+                }
+            }
             break;
         } else if (entered && entered.length > 0) {
             failedAttempts++;
