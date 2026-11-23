@@ -1,0 +1,50 @@
+Filetype: IR signals file
+Version: 1
+#
+# Hathway & Den Cable Digital STB
+# Protocol: NEC (Address: 00 BF)
+#
+name: POWER
+protocol: NEC
+address: 00 BF 00 00
+command: 12 ED 00 00
+#
+name: MUTE
+protocol: NEC
+address: 00 BF 00 00
+command: 10 EF 00 00
+#
+name: VOL+
+protocol: NEC
+address: 00 BF 00 00
+command: 1A E5 00 00
+#
+name: VOL-
+protocol: NEC
+address: 00 BF 00 00
+command: 42 BD 00 00
+#
+name: CH+
+protocol: NEC
+address: 00 BF 00 00
+command: 1E E1 00 00
+#
+name: CH-
+protocol: NEC
+address: 00 BF 00 00
+command: 1F E0 00 00
+#
+name: MENU
+protocol: NEC
+address: 00 BF 00 00
+command: 5B A4 00 00
+#
+name: OK
+protocol: NEC
+address: 00 BF 00 00
+command: 1B E4 00 00
+#
+name: EXIT
+protocol: NEC
+address: 00 BF 00 00
+command: 58 A7 00 00

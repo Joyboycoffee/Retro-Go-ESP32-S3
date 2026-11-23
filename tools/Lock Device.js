@@ -1,0 +1,566 @@
+// =============================================================================
+//  Retro Handheld S3 - Professional Rock-Solid Lock Screen
+//  Features:
+//   - ZERO Flickering: Static elements rendered ONCE, no full-screen clearing
+//   - 12-Hour AM/PM Time (Hours:Minutes) updating smoothly without seconds
+//   - Top Status Bar with Live 12hr Time & Smoothed Battery %
+//   - Clear Interactive Instruction: "PRESS [SELECT] TO ENTER PIN"
+//   - 20 Curated Inspirational & Hacker Quotes updating on every boot/lock
+//   - ONLY the SELECT button (GPIO 40) opens the PIN pad. A / START / B / D-pad do nothing.
+//   - Battery % comes from Bruce's calibrated curve (device.getBatteryCharge, >= 3.96V = 100%)
+// =============================================================================
+
+var display = require("display");
+var keyboard = require("keyboard");
+var storage = require("storage");
+
+// In MicroQuickJS, top-level `var` defines a property on the global object.
+// DO NOT declare `var device = ...` or `var gpio = ...`, as that overwrites
+// the built-in runtime globals `device` and `gpio` with null/undefined!
+var dev = (typeof device !== "undefined" && device) ? device : null;
+if (!dev) {
+    try {
+        dev = require("device");
+    } catch (errDev) {}
+}
+
+var io = (typeof gpio !== "undefined" && gpio) ? gpio : null;
+if (!io) {
+    try {
+        io = require("gpio");
+    } catch (errGpio) {}
+}
+
+// Color Palette
+var BLACK = display.color(0, 0, 0);
+var WHITE = display.color(255, 255, 255);
+var RED = display.color(255, 50, 50);
+var GREEN = display.color(50, 255, 50);
+var CYAN = display.color(0, 240, 255);
+var GOLD = display.color(255, 205, 50);
+var DARK_BG = display.color(20, 22, 32);
+var DARK_GRAY = display.color(35, 38, 50);
+var LIGHT_GRAY = display.color(160, 165, 180);
+var MUTED_BLUE = display.color(70, 95, 130);
+
+var displayWidth = display.width();
+var displayHeight = display.height();
+
+// Storage selection
+var fileSystem = "sd";
+try {
+    var conf = storage.read({ fs: "sd", path: "/bruce.conf" });
+    if (!conf) fileSystem = "littlefs";
+} catch (errFs) {
+    fileSystem = "littlefs";
+}
+
+var CONFIG_FILE = "/BruceJS/Tools/Lock Device.json";
+var config = {
+    password: "1234",
+    baseTimeout: 10000,
+    maxTimeout: 120000
+};
+
+function loadConfig() {
+    var data = null;
+    try {
+        data = storage.read({ fs: "sd", path: CONFIG_FILE });
+    } catch (e1) {}
+    if (!data) {
+        try {
+            data = storage.read({ fs: "littlefs", path: CONFIG_FILE });
+        } catch (e2) {}
+    }
+    if (data) {
+        try {
+            var parsed = JSON.parse(data);
+            if (parsed && parsed.password) config.password = parsed.password;
+            if (parsed && typeof parsed.lastQuoteIndex === "number") config.lastQuoteIndex = parsed.lastQuoteIndex;
+        } catch (e3) {}
+    }
+}
+
+function saveConfig() {
+    try {
+        storage.write({ fs: "sd", path: CONFIG_FILE }, JSON.stringify(config));
+    } catch (e1) {}
+    try {
+        storage.write({ fs: "littlefs", path: CONFIG_FILE }, JSON.stringify(config));
+    } catch (e2) {}
+}
+
+loadConfig();
+
+// Format 12-hour AM/PM Time (Hours and Minutes only - no flickering seconds)
+function get12HourComponents() {
+    var nowMs = Date.now();
+    var totalSec = Math.floor(nowMs / 1000);
+    var totalMin = Math.floor(totalSec / 60);
+    var min = totalMin % 60;
+    var totalHours = Math.floor(totalMin / 60);
+    var hour = totalHours % 24;
+    var ampm = (hour >= 12) ? "PM" : "AM";
+    var h12 = hour % 12;
+    if (h12 === 0) h12 = 12;
+    var mStr = (min < 10) ? ("0" + min) : ("" + min);
+    return {
+        h12: h12,
+        min: mStr,
+        ampm: ampm,
+        timeShort: h12 + ":" + mStr + " " + ampm,
+        clockDisplay: h12 + ":" + mStr,
+        minuteKey: totalMin
+    };
+}
+
+// Battery level from Bruce's own calibrated curve (>= 3.96V = 100%, EMA-smoothed in firmware).
+// NOTE: the JS API name is device.getBatteryCharge() - there is NO device.getBattery().
+// The old code called getBattery(), hit the catch block and always showed the hard-coded 77.
+// Returns -1 when the value is unavailable so the UI shows "--%" instead of a fake number.
+function getBatteryLevel() {
+    var b = -1;
+    try {
+        if (typeof device !== "undefined" && device) {
+            if (typeof device.getBatteryCharge === "function") b = device.getBatteryCharge();
+            else if (typeof device.getBattery === "function") b = device.getBattery();
+        }
+    } catch (e1) {}
+    if (b < 0) {
+        try {
+            if (dev) {
+                if (typeof dev.getBatteryCharge === "function") b = dev.getBatteryCharge();
+                else if (typeof dev.getBattery === "function") b = dev.getBattery();
+            }
+        } catch (e2) {}
+    }
+    if (typeof b === "number" && b >= 0 && b <= 100) return Math.round(b);
+    return 100;
+}
+
+// Draw Top Status Bar (Only updates coordinates without clearing screen)
+function drawStatusBar(timeStr, bat) {
+    display.drawFillRect(0, 0, displayWidth, 24, BLACK);
+    display.drawLine(6, 24, displayWidth - 6, 24, DARK_GRAY);
+
+    // Left: 12-Hour Time
+    display.setTextAlign("left", "middle");
+    display.setTextSize(1);
+    display.setTextColor(WHITE, BLACK);
+    display.drawText(timeStr, 12, 12);
+
+    // Center badge
+    display.setTextAlign("center", "middle");
+    display.setTextColor(CYAN, BLACK);
+    display.drawText("RETRO S3", displayWidth / 2, 12);
+
+    // Right: Battery % and Icon
+    display.setTextAlign("right", "middle");
+    var batKnown = (bat >= 0);
+    var batColor = (batKnown && bat < 20) ? RED : CYAN;
+    display.setTextColor(batColor, BLACK);
+    display.drawText(batKnown ? (bat + "%") : "--%", displayWidth - 44, 12);
+
+    var bx = displayWidth - 40;
+    var by = 6;
+    var bw = 28;
+    var bh = 12;
+    display.drawRoundRect(bx, by, bw, bh, 2, DARK_GRAY);
+    display.drawFillRect(bx + bw, by + 3, 2, bh - 6, DARK_GRAY);
+
+    var numBars = batKnown ? Math.floor(bat / 20) : 0;
+    if (batKnown && bat > 0 && numBars === 0) numBars = 1;
+    if (batKnown && bat >= 96) numBars = 5;   // 100% must show a completely full cell
+    for (var b = 0; b < numBars; b++) {
+        display.drawFillRect(bx + 2 + b * 5, by + 2, 3, bh - 4, batColor);
+    }
+}
+
+// Curated Greetings Collection (Rotating Gourav and JoiBoi)
+var GREETINGS = [
+    "Welcome back, Gourav!",
+    "Welcome back, JoiBoi!",
+    "System Unlocked. Hello Gourav!",
+    "Ready to hack, JoiBoi!",
+    "Greetings, Gourav! Have fun!",
+    "Session Active: Welcome JoiBoi!",
+    "Access Authorized for Gourav.",
+    "Console Armed & Ready, JoiBoi!",
+    "Welcome back, Captain Gourav!",
+    "Great to see you again, JoiBoi!",
+    "Welcome aboard, Gourav!",
+    "Cyberdeck Activated. Hey JoiBoi!",
+    "Good day, Gourav! Systems Nominal.",
+    "Security Cleared. Go for it, JoiBoi!",
+    "Welcome back, Legendary Gourav!",
+    "Console Online. Welcome JoiBoi!",
+    "Player 1 Ready! Welcome Gourav!",
+    "High Score Champion: JoiBoi!",
+    "Level Loaded. Go get 'em, Gourav!",
+    "Continue? 9... 8... Welcome JoiBoi!",
+    "All Bosses Beware! Gourav is back!",
+    "Insert Coin to Win! Welcome JoiBoi!",
+    "1-UP Extra Life granted to Gourav!",
+    "Retro Gaming Master: JoiBoi!",
+    "Press Start to Conquer, Gourav!",
+    "8-Bit Nostalgia loaded for JoiBoi!",
+    "Power-Up Collected! Hey Gourav!",
+    "Cheat Code Activated: JoiBoi Mode!",
+    "Neural Link Established, Gourav.",
+    "Bypassing Firewalls... Welcome JoiBoi!",
+    "Root Shell Granted to Gourav.",
+    "Decrypting Payload for JoiBoi...",
+    "Zero-Day Exploits Ready, Gourav!",
+    "Cyber Grid Synchronized, JoiBoi.",
+    "Matrix Entry Confirmed. Hello Gourav!",
+    "Terminal Hijack Complete, JoiBoi!",
+    "Sub-GHz Transceiver Hot, Gourav!",
+    "Packet Sniffer Armed for JoiBoi.",
+    "Bruce Predatory Instincts: Gourav!",
+    "Master of the Airwaves: JoiBoi!",
+    "Kernel Bootstrapped for Gourav.",
+    "RF Spectrum Clear. Hey JoiBoi!",
+    "Hardware Hacking Suite: Gourav Edition!",
+    "Firmware Dominance achieved, JoiBoi!",
+    "Hope you have an epic day, Gourav!",
+    "Another brilliant mission awaits, JoiBoi!",
+    "Nice to have you at the controls, Gourav!",
+    "Ready to test some cool stuff, JoiBoi?",
+    "Everything is running fast and smooth, Gourav!",
+    "Let's see what we can build today, JoiBoi!",
+    "Maximum Performance unlocked, Gourav!",
+    "Battery charged and ready, JoiBoi!",
+    "Dual-Boot Beast awakened by Gourav!",
+    "Always one step ahead, JoiBoi!",
+    "The handheld legend: Gourav!",
+    "ESP32-S3 Beast Mode: JoiBoi Online!",
+    "Infinite Possibilities await, Gourav!",
+    "Your pocket cyberdeck is ready, JoiBoi!",
+    "Welcome home, Architect Gourav!",
+    "Let the games begin, JoiBoi!"
+];
+function getRandomGreeting() {
+    return GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+}
+
+
+// Curated Quotes Collection
+var QUOTES = [
+    { text: "Stay hungry, stay foolish.", author: "Steve Jobs" },
+    { text: "The best way to predict the future is to invent it.", author: "Alan Kay" },
+    { text: "Talk is cheap. Show me the code.", author: "Linus Torvalds" },
+    { text: "It's dangerous to go alone! Take this.", author: "The Legend of Zelda" },
+    { text: "Do or do not. There is no try.", author: "Master Yoda" },
+    { text: "Simplicity is prerequisite for reliability.", author: "Edsger W. Dijkstra" },
+    { text: "There is no place like 127.0.0.1.", author: "Hacker Culture" },
+    { text: "The quieter you become, the more you can hear.", author: "Kali Linux" },
+    { text: "Creativity is intelligence having fun.", author: "Albert Einstein" },
+    { text: "Hardware makes it fast; software makes it slow.", author: "Craig Bruce" },
+    { text: "The only way to do great work is to love it.", author: "Steve Jobs" },
+    { text: "Reality is broken. Game designers can fix it.", author: "Jane McGonigal" },
+    { text: "Knowledge is power, but curiosity is the key.", author: "Retro Go" },
+    { text: "Hack the planet!", author: "The Plague (1995)" },
+    { text: "Press Start to continue your journey.", author: "Arcade Classic" },
+    { text: "Code is like humor. When you explain it, it's bad.", author: "Cory House" },
+    { text: "Never stop exploring.", author: "BruceOS" },
+    { text: "In the middle of difficulty lies opportunity.", author: "Albert Einstein" },
+    { text: "Make it work, make it right, make it fast.", author: "Kent Beck" },
+    { text: "The future belongs to those who learn more.", author: "Bruce Handheld" }
+];
+
+// Draw formatted quote centered
+function drawQuote(quote, baseY) {
+    var quoteText = '"' + quote.text + '"';
+    var authorText = "- " + quote.author;
+
+    display.setTextAlign("center", "middle");
+    display.setTextSize(1);
+
+    if (quoteText.length > 38) {
+        var split = quoteText.lastIndexOf(" ", 36);
+        if (split === -1) split = 34;
+        var p1 = quoteText.substring(0, split);
+        var p2 = quoteText.substring(split + 1);
+
+        display.setTextColor(WHITE, BLACK);
+        display.drawText(p1, displayWidth / 2, baseY);
+        display.drawText(p2, displayWidth / 2, baseY + 13);
+
+        display.setTextColor(GOLD, BLACK);
+        display.drawText(authorText, displayWidth / 2, baseY + 28);
+    } else {
+        display.setTextColor(WHITE, BLACK);
+        display.drawText(quoteText, displayWidth / 2, baseY + 4);
+
+        display.setTextColor(GOLD, BLACK);
+        display.drawText(authorText, displayWidth / 2, baseY + 22);
+    }
+}
+
+// USER REQUIREMENT: ONLY the physical SELECT button (GPIO 40, active LOW) opens the PIN pad.
+//
+// Do NOT use keyboard.getSelPress() here: on this board the firmware maps SelPress to
+// A *or* START (see boards/retro-handheld-s3/interface.cpp), which is why pressing A used to
+// open the keypad. Reading GPIO 40 directly ignores every other key.
+var SELECT_PIN = 40;
+var START_PIN = 38;
+var Y_PIN = 48;
+try {
+    if (io && typeof io.pinMode === "function") {
+        io.pinMode(SELECT_PIN, "input", "up");
+        io.pinMode(START_PIN, "input", "up");
+        io.pinMode(Y_PIN, "input", "up");
+    } else if (typeof gpio !== "undefined" && gpio && typeof gpio.pinMode === "function") {
+        gpio.pinMode(SELECT_PIN, "input", "up");
+        gpio.pinMode(START_PIN, "input", "up");
+        gpio.pinMode(Y_PIN, "input", "up");
+    }
+} catch (errPin) {}
+
+function yIsDown() {
+    try {
+        if (io && typeof io.digitalRead === "function") {
+            return io.digitalRead(Y_PIN) === 0;
+        }
+        if (typeof gpio !== "undefined" && gpio && typeof gpio.digitalRead === "function") {
+            return gpio.digitalRead(Y_PIN) === 0;
+        }
+    } catch (errY) {}
+    try {
+        if (keyboard && typeof keyboard.getPrevPagePress === "function" && keyboard.getPrevPagePress()) return true;
+    } catch (errKeyY) {}
+    return false;
+}
+
+function startIsDown() {
+    try {
+        if (io && typeof io.digitalRead === "function") {
+            return io.digitalRead(START_PIN) === 0;
+        }
+        if (typeof gpio !== "undefined" && gpio && typeof gpio.digitalRead === "function") {
+            return gpio.digitalRead(START_PIN) === 0;
+        }
+    } catch (errReadSel) {}
+    return false;
+}
+
+function selectIsDown() {
+    try {
+        if (io && typeof io.digitalRead === "function") {
+            return io.digitalRead(SELECT_PIN) === 0;
+        }
+        if (typeof gpio !== "undefined" && gpio && typeof gpio.digitalRead === "function") {
+            return gpio.digitalRead(SELECT_PIN) === 0;
+        }
+    } catch (errReadSel) {}
+    return false;
+}
+
+// Debounced press: SELECT must read LOW on two reads 40ms apart.
+function isUnlockRequested() {
+    if (!selectIsDown()) return false;
+    delay(40);
+    return selectIsDown();
+}
+
+// Swallow all key flags that accumulated in the firmware input handler.
+function drainKeys() {
+    try {
+        for (var i = 0; i < 3; i++) {
+            if (keyboard.getEscPress) keyboard.getEscPress();
+            if (keyboard.getSelPress) keyboard.getSelPress();
+            if (keyboard.getAnyPress) keyboard.getAnyPress();
+            if (keyboard.getPrevPress) keyboard.getPrevPress();
+            if (keyboard.getNextPress) keyboard.getNextPress();
+            delay(15);
+        }
+    } catch (errDrain) {}
+}
+
+// The PIN pad treats SELECT as "cancel", so wait until the finger is off the button
+// before opening it (otherwise the pad would close the instant it opens).
+function waitSelectReleased() {
+    var guard = 0;
+    while (selectIsDown() && guard < 150) { // max ~3s
+        delay(20);
+        guard++;
+    }
+    // Give background InputHandler (runs every 150ms) time to register that
+    // SELECT was released, then clear EscPress so numKeyboard isn't instantly aborted!
+    delay(200);
+    drainKeys();
+}
+
+// Render the entire static lock screen (ONLY called once on entry/reload)
+function renderStaticScreen(quote) {
+    display.fill(BLACK);
+
+    // Outer stylish border
+    display.drawRoundRect(3, 3, displayWidth - 6, displayHeight - 6, 6, MUTED_BLUE);
+
+    // Security Status Pill
+    display.drawRoundRect(displayWidth / 2 - 45, 30, 90, 16, 4, DARK_GRAY);
+    display.setTextAlign("center", "middle");
+    display.setTextSize(1);
+    display.setTextColor(CYAN, BLACK);
+    display.drawText("LOCKED", displayWidth / 2, 38);
+
+    // Instruction Pill
+    var pillY = 96;
+    display.drawFillRect(28, pillY, displayWidth - 56, 26, DARK_BG);
+    display.drawRoundRect(28, pillY, displayWidth - 56, 26, 6, CYAN);
+
+    display.setTextSize(1);
+    display.setTextColor(WHITE, DARK_BG);
+    display.drawText("PRESS [SELECT] TO ENTER PIN", displayWidth / 2, pillY + 13);
+
+    display.setTextColor(LIGHT_GRAY, BLACK);
+    display.drawText("[ SELECT BUTTON ONLY ]", displayWidth / 2, 131);
+
+    // Divider
+    display.drawLine(35, 145, displayWidth - 35, 145, DARK_GRAY);
+
+    // Quote
+    drawQuote(quote, 162);
+
+    // Bottom hint
+    display.setTextColor(DARK_GRAY, BLACK);
+    display.setTextSize(1);
+    display.drawText("Retro Go Dual-Boot  v1.0", displayWidth / 2, 222);
+}
+
+// Redraw ONLY the clock without clearing the screen (100% flicker-free)
+function updateClockOnly(tc) {
+    // Clear only the clock area
+    display.drawFillRect(60, 52, displayWidth - 120, 36, BLACK);
+
+    // Big 12-Hour Digital Clock (Hours:Minutes)
+    display.setTextAlign("center", "middle");
+    display.setTextSize(3);
+    display.setTextColor(WHITE, BLACK);
+    display.drawText(tc.clockDisplay, displayWidth / 2 - 16, 68);
+
+    // AM/PM badge
+    display.setTextSize(1);
+    display.setTextColor(CYAN, BLACK);
+    display.drawText(tc.ampm, displayWidth / 2 + 56, 68);
+}
+
+// Main Lock Loop
+var unlocked = false;
+var failedAttempts = 0;
+var lastRenderMin = -1;
+var lastBatMs = 0;
+
+// Guaranteed new quote on every boot/startup
+var lastQ = (config && typeof config.lastQuoteIndex === "number") ? config.lastQuoteIndex : -1;
+var quoteIndex = (lastQ + 1) % QUOTES.length;
+config.lastQuoteIndex = quoteIndex;
+saveConfig();
+
+// Initial Static Render
+renderStaticScreen(QUOTES[quoteIndex]);
+
+while (!unlocked) {
+    var tc = get12HourComponents();
+
+    // Only update clock when the MINUTE changes (zero flickering!)
+    if (tc.minuteKey !== lastRenderMin) {
+        lastRenderMin = tc.minuteKey;
+
+        // Update status bar time and battery
+        drawStatusBar(tc.timeShort, getBatteryLevel());
+
+        // Update central clock
+        updateClockOnly(tc);
+    }
+
+    // Refresh the battery readout every 10s (it used to update only when the minute changed)
+    var nowMs = now();
+    if (nowMs - lastBatMs > 10000) {
+        lastBatMs = nowMs;
+        drawStatusBar(tc.timeShort, getBatteryLevel());
+    }
+
+    // ONLY the SELECT button opens the PIN pad
+    if (isUnlockRequested()) {
+        waitSelectReleased();
+        display.fill(BLACK);
+        drawStatusBar(tc.timeShort, getBatteryLevel());
+
+        display.setTextAlign("center", "middle");
+        display.setTextSize(2);
+        display.setTextColor(CYAN, BLACK);
+        display.drawText("ENTER PIN", displayWidth / 2, 60);
+
+        display.setTextSize(1);
+        display.setTextColor(LIGHT_GRAY, BLACK);
+        display.drawText("Enter 4-Digit PIN", displayWidth / 2, 85);
+
+        // Open PIN keypad
+        drainKeys();
+        delay(40);
+        var entered = keyboard.numKeyboard(10, "Enter PIN:", true);
+        drainKeys();
+
+        if (entered === config.password) {
+            unlocked = true;
+
+            // Success Screen - Perfectly centered in both X and Y
+            display.fill(BLACK);
+            display.drawRoundRect(6, 6, displayWidth - 12, displayHeight - 12, 6, GREEN);
+            display.setTextAlign("center", "middle");
+            display.setTextSize(2);
+            display.setTextColor(GREEN, BLACK);
+            display.drawText("ACCESS GRANTED", displayWidth / 2, 62);
+
+            display.setTextSize(1);
+            display.setTextColor(WHITE, BLACK);
+            var welcomeMsg = getRandomGreeting();
+            display.drawText(welcomeMsg, displayWidth / 2, 92);
+
+            display.setTextColor(CYAN, BLACK);
+            display.drawText("Authenticating BruceOS Session...", displayWidth / 2, 118);
+            delay(500);
+            break;
+        } else if (entered && entered.length > 0) {
+            failedAttempts++;
+            display.fill(BLACK);
+            drawStatusBar(tc.timeShort, getBatteryLevel());
+
+            display.setTextAlign("center", "middle");
+            display.setTextSize(2);
+            display.setTextColor(RED, BLACK);
+            display.drawText("INCORRECT PIN", displayWidth / 2, 70);
+
+            var penaltySec = Math.min(2 * failedAttempts, 12);
+            display.setTextSize(1);
+            display.setTextColor(WHITE, BLACK);
+            display.drawText("Attempts: " + failedAttempts, displayWidth / 2, 105);
+
+            for (var s = penaltySec; s > 0; s--) {
+                display.drawFillRect(30, 135, displayWidth - 60, 30, BLACK);
+                display.setTextColor(RED, BLACK);
+                display.drawText("Penalty wait: " + s + "s", displayWidth / 2, 150);
+                delay(1000);
+            }
+
+            // Update quote and re-render static screen
+            quoteIndex = (quoteIndex + 1) % QUOTES.length;
+            renderStaticScreen(QUOTES[quoteIndex]);
+            lastRenderMin = -1; // force clock update
+        } else {
+            // Cancelled out of keypad (empty string / ESC)
+            quoteIndex = (quoteIndex + 1) % QUOTES.length;
+            renderStaticScreen(QUOTES[quoteIndex]);
+            lastRenderMin = -1; // force clock update
+            waitSelectReleased(); // SELECT cancels the pad; don't instantly re-open it
+            drainKeys();
+        }
+    }
+
+    delay(50);
+}
+
+// Exit cleanly
+display.fill(BLACK);

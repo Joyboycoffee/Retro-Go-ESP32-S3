@@ -1,0 +1,35 @@
+Filetype: IR signals file
+Version: 1
+#
+# Lloyd Smart TV (Havells / TCL chassis)
+# Protocol: NEC (Address: 00 BF)
+#
+name: POWER
+protocol: NEC
+address: 00 BF 00 00
+command: 48 B7 00 00
+#
+name: SOURCE
+protocol: NEC
+address: 00 BF 00 00
+command: 0B F4 00 00
+#
+name: MENU
+protocol: NEC
+address: 00 BF 00 00
+command: 5B A4 00 00
+#
+name: VOL+
+protocol: NEC
+address: 00 BF 00 00
+command: 1A E5 00 00
+#
+name: VOL-
+protocol: NEC
+address: 00 BF 00 00
+command: 42 BD 00 00
+#
+name: OK
+protocol: NEC
+address: 00 BF 00 00
+command: 1B E4 00 00

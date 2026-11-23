@@ -1,0 +1,55 @@
+Filetype: IR signals file
+Version: 1
+#
+# Micromax LED TV (Universal Indian Chassis)
+# Protocol: NEC (Address: 00 BF)
+#
+name: POWER
+protocol: NEC
+address: 00 BF 00 00
+command: 48 B7 00 00
+#
+name: SOURCE/INPUT
+protocol: NEC
+address: 00 BF 00 00
+command: 0B F4 00 00
+#
+name: MENU
+protocol: NEC
+address: 00 BF 00 00
+command: 5B A4 00 00
+#
+name: VOL+
+protocol: NEC
+address: 00 BF 00 00
+command: 1A E5 00 00
+#
+name: VOL-
+protocol: NEC
+address: 00 BF 00 00
+command: 42 BD 00 00
+#
+name: CH+
+protocol: NEC
+address: 00 BF 00 00
+command: 1E E1 00 00
+#
+name: CH-
+protocol: NEC
+address: 00 BF 00 00
+command: 1F E0 00 00
+#
+name: OK
+protocol: NEC
+address: 00 BF 00 00
+command: 1B E4 00 00
+#
+name: EXIT
+protocol: NEC
+address: 00 BF 00 00
+command: 58 A7 00 00
+#
+name: MUTE
+protocol: NEC
+address: 00 BF 00 00
+command: 09 F6 00 00

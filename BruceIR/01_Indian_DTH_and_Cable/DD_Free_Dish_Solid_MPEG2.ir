@@ -1,0 +1,110 @@
+Filetype: IR signals file
+Version: 1
+#
+# DD Free Dish (Solid, Melbon, Asian FTA MPEG-2/MPEG-4 STB)
+# Protocol: NEC (Address: 00 FF)
+#
+name: POWER
+protocol: NEC
+address: 00 FF 00 00
+command: 0F F0 00 00
+#
+name: MUTE
+protocol: NEC
+address: 00 FF 00 00
+command: 4F B0 00 00
+#
+name: 1
+protocol: NEC
+address: 00 FF 00 00
+command: 83 7C 00 00
+#
+name: 2
+protocol: NEC
+address: 00 FF 00 00
+command: 43 BC 00 00
+#
+name: 3
+protocol: NEC
+address: 00 FF 00 00
+command: C3 3C 00 00
+#
+name: 4
+protocol: NEC
+address: 00 FF 00 00
+command: 23 DC 00 00
+#
+name: 5
+protocol: NEC
+address: 00 FF 00 00
+command: A3 5C 00 00
+#
+name: 6
+protocol: NEC
+address: 00 FF 00 00
+command: 63 9C 00 00
+#
+name: 7
+protocol: NEC
+address: 00 FF 00 00
+command: E3 1C 00 00
+#
+name: 8
+protocol: NEC
+address: 00 FF 00 00
+command: 13 EC 00 00
+#
+name: 9
+protocol: NEC
+address: 00 FF 00 00
+command: 93 6C 00 00
+#
+name: 0
+protocol: NEC
+address: 00 FF 00 00
+command: 03 FC 00 00
+#
+name: MENU
+protocol: NEC
+address: 00 FF 00 00
+command: 5B A4 00 00
+#
+name: OK
+protocol: NEC
+address: 00 FF 00 00
+command: 93 6C 00 00
+#
+name: EXIT
+protocol: NEC
+address: 00 FF 00 00
+command: AB 54 00 00
+#
+name: VOL+
+protocol: NEC
+address: 00 FF 00 00
+command: 01 FE 00 00
+#
+name: VOL-
+protocol: NEC
+address: 00 FF 00 00
+command: 81 7E 00 00
+#
+name: CH+
+protocol: NEC
+address: 00 FF 00 00
+command: 09 F6 00 00
+#
+name: CH-
+protocol: NEC
+address: 00 FF 00 00
+command: 89 76 00 00
+#
+name: TV/RADIO
+protocol: NEC
+address: 00 FF 00 00
+command: EB 14 00 00
+#
+name: AUDIO
+protocol: NEC
+address: 00 FF 00 00
+command: 4B B4 00 00
