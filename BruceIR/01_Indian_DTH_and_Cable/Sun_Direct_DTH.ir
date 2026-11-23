@@ -1,0 +1,50 @@
+Filetype: IR signals file
+Version: 1
+#
+# Sun Direct DTH HD STB
+# Protocol: NEC (Address: 01 FE)
+#
+name: POWER
+protocol: NEC
+address: 01 FE 00 00
+command: 48 B7 00 00
+#
+name: MUTE
+protocol: NEC
+address: 01 FE 00 00
+command: 58 A7 00 00
+#
+name: VOL+
+protocol: NEC
+address: 01 FE 00 00
+command: 18 E7 00 00
+#
+name: VOL-
+protocol: NEC
+address: 01 FE 00 00
+command: 08 F7 00 00
+#
+name: CH+
+protocol: NEC
+address: 01 FE 00 00
+command: 38 C7 00 00
+#
+name: CH-
+protocol: NEC
+address: 01 FE 00 00
+command: 28 D7 00 00
+#
+name: MENU
+protocol: NEC
+address: 01 FE 00 00
+command: 68 97 00 00
+#
+name: OK
+protocol: NEC
+address: 01 FE 00 00
+command: A8 57 00 00
+#
+name: EXIT
+protocol: NEC
+address: 01 FE 00 00
+command: E8 17 00 00

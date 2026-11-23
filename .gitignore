@@ -10,14 +10,36 @@ build/
 *.bin
 *.elf
 *.map
+*.img
+*.log
 partitions.bin
 partitions.csv
+retro_go_build*/
+build_firmware*/
+__pycache__/
+*.pyc
 
 # Keep user ROMs strictly local on PC for SD card drag-and-drop
 copy to SD card/roms/
+roms_backup/
+roms_backup*/
+roms_backup_original/
 
 # Keep precompiled wad in prboom-go
 !retro-go/prboom-go/components/prboom/data/doom1.wad
+
+# Audio and media
+*.mp3
+*.flac
+*.wav.bak
+scratch_*
+
+# Payloads and scripts
+badusb_payloads/
+digispark_scripts/
+copy to SD card/BadUSB and BlueDucky/
+Flipper-IRDB/
+New folder/
 
 # VS Code / IDE
 .vscode/
@@ -29,11 +51,6 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
-build_firmware/
-build_firmware_new/
-
 # Dual boot & Bruce local
 bruce/
-dualboot_*.img
-dualboot_builder.py
 temp_bl.bin

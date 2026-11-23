@@ -1,0 +1,55 @@
+Filetype: IR signals file
+Version: 1
+#
+# China Universal Boards - Samsung Preflashed Profile (0707)
+# Protocol: Samsung32 (Address: 07 07)
+#
+name: POWER
+protocol: Samsung32
+address: 07 07 00 00
+command: 02 FD 00 00
+#
+name: SOURCE
+protocol: Samsung32
+address: 07 07 00 00
+command: 01 FE 00 00
+#
+name: MENU
+protocol: Samsung32
+address: 07 07 00 00
+command: 1A E5 00 00
+#
+name: VOL+
+protocol: Samsung32
+address: 07 07 00 00
+command: 07 F8 00 00
+#
+name: VOL-
+protocol: Samsung32
+address: 07 07 00 00
+command: 0B F4 00 00
+#
+name: CH+
+protocol: Samsung32
+address: 07 07 00 00
+command: 12 ED 00 00
+#
+name: CH-
+protocol: Samsung32
+address: 07 07 00 00
+command: 10 EF 00 00
+#
+name: ENTER/OK
+protocol: Samsung32
+address: 07 07 00 00
+command: 68 97 00 00
+#
+name: EXIT
+protocol: Samsung32
+address: 07 07 00 00
+command: 2D D2 00 00
+#
+name: MUTE
+protocol: Samsung32
+address: 07 07 00 00
+command: 0F F0 00 00

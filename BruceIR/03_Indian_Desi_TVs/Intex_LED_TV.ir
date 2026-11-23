@@ -1,0 +1,50 @@
+Filetype: IR signals file
+Version: 1
+#
+# Intex LED TV
+# Protocol: NEC (Address: 04 FB)
+#
+name: POWER
+protocol: NEC
+address: 04 FB 00 00
+command: 08 F7 00 00
+#
+name: SOURCE/INPUT
+protocol: NEC
+address: 04 FB 00 00
+command: 01 FE 00 00
+#
+name: MENU
+protocol: NEC
+address: 04 FB 00 00
+command: 00 FF 00 00
+#
+name: VOL+
+protocol: NEC
+address: 04 FB 00 00
+command: 02 FD 00 00
+#
+name: VOL-
+protocol: NEC
+address: 04 FB 00 00
+command: 03 FC 00 00
+#
+name: CH+
+protocol: NEC
+address: 04 FB 00 00
+command: 1E E1 00 00
+#
+name: CH-
+protocol: NEC
+address: 04 FB 00 00
+command: 1F E0 00 00
+#
+name: OK
+protocol: NEC
+address: 04 FB 00 00
+command: 07 F8 00 00
+#
+name: MUTE
+protocol: NEC
+address: 04 FB 00 00
+command: 09 F6 00 00
